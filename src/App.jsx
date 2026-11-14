@@ -1,14 +1,15 @@
+// INÍCIO DO ARQUIVO src/App.jsx
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
 import {
   Wallet, TrendingUp, TrendingDown, Trash2, Download, Upload,
   Filter, PieChart, Utensils, Car, Home, Gamepad2, HeartPulse, GraduationCap,
-  Briefcase, DollarSign, Tag, CheckCircle2, AlertCircle, X, Clock, RotateCcw,
+  Briefcase, DollarSign, Tag, CheckCircle2, AlertCircle, X, Clock,
   ChevronLeft, ChevronRight, Pencil, Search, Target, Sun, Moon, Plus, Bell,
   Scissors, Sparkles, Droplets, Shirt, PiggyBank, Layers, BarChart3,
   LayoutGrid, ShoppingBag, Coffee, Gift, Baby, Smartphone, Zap, Check,
-  ArrowUpRight, ArrowDownRight,
+  ArrowUpRight, ArrowDownRight, Copy, Database, FileSpreadsheet, CreditCard,
 } from 'lucide-react';
 
 // ============================================================================
@@ -19,7 +20,6 @@ const KEYS = {
   OLD_TX: 'financas_simples_transactions_v2',
   CATS: 'financas_categories_v1',
   ITEM_GOALS: 'financas_simples_item_goals_v1',
-  LEGACY_GOALS: 'financas_simples_goals_v1',
   BACKUP: 'financas_simples_last_backup_v2',
   THEME: 'financas_simples_theme_v1',
   NOSPEND: 'financas_simples_nospend_v1',
@@ -77,6 +77,15 @@ const shiftMonth = (ym, delta) => {
   const [y, m] = ym.split('-').map(Number);
   const d = new Date(y, m - 1 + delta, 1);
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
+};
+
+const shiftDateMonths = (iso, deltaMonths) => {
+  const [y, m, d] = iso.split('-').map(Number);
+  const targetMonthIndex = (m - 1) + deltaMonths;
+  const targetYear = y + Math.floor(targetMonthIndex / 12);
+  const targetMonth = ((targetMonthIndex % 12) + 12) % 12;
+  const maxDay = new Date(targetYear, targetMonth + 1, 0).getDate();
+  return `${targetYear}-${pad(targetMonth + 1)}-${pad(Math.min(d, maxDay))}`;
 };
 
 const monthLabel = (ym) => {
@@ -312,7 +321,9 @@ export default function App() {
 
   const [noSpend, setNoSpend] = useState(() => store.get(KEYS.NOSPEND, []));
   const [reminderTime, setReminderTime] = useState('20:00');
+  const [backupMenuOpen, setBackupMenuOpen] = useState(false);
   const [backupFallbackText, setBackupFallbackText] = useState('');
+  const [backupFallbackExt, setBackupFallbackExt] = useState('json');
 
   // Modal de Lançamento / Edição
   const [quickOpen, setQuickOpen] = useState(false);
@@ -322,6 +333,7 @@ export default function App() {
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(todayISO);
+  const [installments, setInstallments] = useState(1);
   const [formError, setFormError] = useState('');
 
   // Filtros do Histórico
@@ -352,9 +364,10 @@ export default function App() {
   const fileInputRef = useRef(null);
   const [importOpen, setImportOpen] = useState(false);
   const [importPreview, setImportPreview] = useState([]);
+  const [importExtraData, setImportExtraData] = useState(null); // { categories, itemGoals, noSpend } quando for JSON
   const [importErrors, setImportErrors] = useState([]);
   const [importMode, setImportMode] = useState('merge');
-  const [importSource, setImportSource] = useState('csv');
+  const [importSource, setImportSource] = useState('json');
 
   // Toast
   const [toast, setToast] = useState(null);
@@ -411,9 +424,12 @@ export default function App() {
     [monthTx]
   );
 
+  // Remove sufixo de parcela "(1/3)" ao agrupar metas do item
+  const baseItemName = (desc) => String(desc || '').replace(/\s*\(\d+\/\d+\)\s*$/, '').trim();
+
   const spentByCatItem = useMemo(
     () => monthTx.filter((t) => t.type === 'despesa').reduce((acc, t) => {
-      const k = itemGoalKey(t.category, t.description);
+      const k = itemGoalKey(t.category, baseItemName(t.description));
       acc[k] = (acc[k] || 0) + t.cents;
       return acc;
     }, {}),
@@ -461,7 +477,7 @@ export default function App() {
     return n;
   }, [loggedDays]);
 
-  // Dados dos Gráficos (Donut + Evolução 6 meses + Top Itens + KPIs)
+  // Dados dos Gráficos
   const donutSegments = useMemo(() => {
     const total = summary.despesas;
     if (!total) return [];
@@ -497,8 +513,9 @@ export default function App() {
     monthTx
       .filter((t) => t.type === 'despesa' && t.category === selectedSlice)
       .forEach((t) => {
-        const k = norm(t.description);
-        const cur = map.get(k) || { key: itemGoalKey(selectedSlice, t.description), label: t.description, value: 0 };
+        const clean = baseItemName(t.description);
+        const k = norm(clean);
+        const cur = map.get(k) || { key: itemGoalKey(selectedSlice, clean), label: clean, value: 0 };
         cur.value += t.cents;
         map.set(k, cur);
       });
@@ -529,8 +546,9 @@ export default function App() {
     monthTx
       .filter((t) => t.type === 'despesa')
       .forEach((t) => {
-        const k = `${t.category}|${norm(t.description)}`;
-        const cur = map.get(k) || { label: t.description, category: t.category, value: 0 };
+        const clean = baseItemName(t.description);
+        const k = `${t.category}|${norm(clean)}`;
+        const cur = map.get(k) || { label: clean, category: t.category, value: 0 };
         cur.value += t.cents;
         map.set(k, cur);
       });
@@ -574,8 +592,9 @@ export default function App() {
     }
     for (const t of transactions) {
       if (t.category !== category) continue;
-      const k = norm(t.description);
-      if (k && !seen.has(k)) { seen.add(k); out.push(t.description); }
+      const clean = baseItemName(t.description);
+      const k = norm(clean);
+      if (k && !seen.has(k)) { seen.add(k); out.push(clean); }
     }
     return out;
   }, [category, transactions, categories]);
@@ -589,10 +608,11 @@ export default function App() {
   const recents = useMemo(() => {
     const seen = new Set(), out = [];
     for (const t of [...transactions].sort((a, b) => b.date.localeCompare(a.date))) {
-      const k = `${t.category}|${norm(t.description)}`;
+      const clean = baseItemName(t.description);
+      const k = `${t.category}|${norm(clean)}`;
       if (t.type !== type || seen.has(k)) continue;
       seen.add(k);
-      out.push(t);
+      out.push({ ...t, description: clean });
       if (out.length === 4) break;
     }
     return out;
@@ -604,6 +624,7 @@ export default function App() {
     setDescription('');
     setAmount('');
     setDate(todayISO());
+    setInstallments(1);
     setFormError('');
   };
 
@@ -617,11 +638,26 @@ export default function App() {
     setQuickOpen(true);
   };
 
+  const openQuickWithPreset = (catId, itemLabel) => {
+    resetForm();
+    setType('despesa');
+    setCategory(catId);
+    setDescription(itemLabel);
+    setQuickOpen(true);
+  };
+
+  const handleAddQuickValue = (addReais) => {
+    const cur = parseAmountToCents(amount);
+    const baseCents = isNaN(cur) || cur < 0 ? 0 : cur;
+    setAmount(centsToInput(baseCents + addReais * 100));
+  };
+
   const handleTypeChange = (newType) => {
     setType(newType);
     const first = categories.find((c) => c.type === newType);
     if (first) setCategory(first.id);
     setDescription('');
+    setInstallments(1);
   };
 
   const handleCategoryChange = (newCat) => {
@@ -632,29 +668,50 @@ export default function App() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const cents = parseAmountToCents(amount);
-    if (isNaN(cents) || cents <= 0) return setFormError('Informe um valor válido maior que zero.');
+    const totalCents = parseAmountToCents(amount);
+    if (isNaN(totalCents) || totalCents <= 0) return setFormError('Informe um valor válido maior que zero.');
     if (!date) return setFormError('Selecione uma data válida.');
 
     const cleanDesc = description.trim() || category;
+    const baseDesc = baseItemName(cleanDesc);
     const wasEditing = Boolean(editingId);
-    const item = { id: editingId || generateId(), date, type, category, description: cleanDesc, cents };
 
-    // Se o usuário digitou um item novo que ainda não está na categoria, salva como sugestão
+    // Salva item novo automaticamente nas sugestões da categoria
     setCategories((prev) => prev.map((c) => {
       if (c.id !== category) return c;
-      const exists = (c.items || []).some((it) => norm(it) === norm(cleanDesc));
-      if (exists || norm(cleanDesc) === norm(c.label)) return c;
-      return { ...c, items: [...(c.items || []), cleanDesc] };
+      const exists = (c.items || []).some((it) => norm(it) === norm(baseDesc));
+      if (exists || norm(baseDesc) === norm(c.label)) return c;
+      return { ...c, items: [...(c.items || []), baseDesc] };
     }));
 
-    setQuickOpen(false);
-    setTransactions((prev) =>
-      wasEditing ? prev.map((t) => (t.id === item.id ? item : t)) : [item, ...prev]
-    );
+    if (wasEditing) {
+      const updated = { id: editingId, date, type, category, description: cleanDesc, cents: totalCents };
+      setTransactions((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+      setMonth(monthOf(date));
+      setQuickOpen(false);
+      resetForm();
+      showToast('Lançamento atualizado!');
+      return;
+    }
+
+    const numParcelas = type === 'despesa' && installments > 1 ? installments : 1;
+    const baseParcelCents = Math.floor(totalCents / numParcelas);
+    const remainderCents = totalCents - baseParcelCents * numParcelas;
+
+    const newEntries = Array.from({ length: numParcelas }, (_, idx) => ({
+      id: generateId(),
+      date: shiftDateMonths(date, idx),
+      type,
+      category,
+      description: numParcelas > 1 ? `${cleanDesc} (${idx + 1}/${numParcelas})` : cleanDesc,
+      cents: idx === 0 ? baseParcelCents + remainderCents : baseParcelCents,
+    }));
+
+    setTransactions((prev) => [...newEntries.reverse(), ...prev]);
     setMonth(monthOf(date));
+    setQuickOpen(false);
     resetForm();
-    showToast(wasEditing ? 'Lançamento atualizado!' : 'Lançamento registrado!');
+    showToast(numParcelas > 1 ? `Lançado em ${numParcelas}x!` : 'Lançamento registrado!');
   };
 
   const handleEdit = (t) => {
@@ -664,8 +721,22 @@ export default function App() {
     setDescription(t.description);
     setAmount(centsToInput(t.cents));
     setDate(t.date);
+    setInstallments(1);
     setFormError('');
     setQuickOpen(true);
+  };
+
+  const handleDuplicate = (t) => {
+    const snapshot = transactions;
+    const copy = {
+      ...t,
+      id: generateId(),
+      date: todayISO(),
+      description: baseItemName(t.description),
+    };
+    setTransactions((prev) => [copy, ...prev]);
+    setMonth(monthOf(copy.date));
+    showToast(`"${copy.description}" repetido hoje!`, 'success', snapshot);
   };
 
   const handleDelete = (id) => {
@@ -762,11 +833,9 @@ export default function App() {
     if (editingCatId) {
       setCategories((prev) => prev.map((c) => {
         if (c.id !== editingCatId) return c;
-        return { ...c, label: cleanLabel, color: catColor, iconName: catIconName, items: parsedItems };
+        return { ...c, id: cleanLabel, label: cleanLabel, color: catColor, iconName: catIconName, items: parsedItems };
       }));
-      // Se renomeou o label, atualiza referência nas transações e metas
       if (editingCatId !== cleanLabel) {
-        setCategories((prev) => prev.map((c) => (c.id === editingCatId ? { ...c, id: cleanLabel } : c)));
         setTransactions((prev) => prev.map((t) => (t.category === editingCatId ? { ...t, category: cleanLabel } : t)));
         setItemGoals((prev) => {
           const next = {};
@@ -830,7 +899,45 @@ export default function App() {
     });
   };
 
-  // ----- Exportar & Importar -----
+  // ----- Exportar Backup Completo (JSON) & Planilha (CSV) -----
+  const stampBackup = () => {
+    const now = new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    setLastBackup(now);
+    store.set(KEYS.BACKUP, now);
+  };
+
+  const handleExportFullJSON = async () => {
+    const payload = {
+      app: 'Financas',
+      version: 2,
+      exportedAt: new Date().toISOString(),
+      data: {
+        transactions,
+        categories,
+        itemGoals,
+        noSpend,
+      },
+    };
+    const jsonText = JSON.stringify(payload, null, 2);
+    setBackupMenuOpen(false);
+
+    const res = await exportFileAndroidSafe({
+      filename: `financas_backup_completo_${todayISO()}.json`,
+      content: jsonText,
+      mimeType: 'application/json',
+      title: 'Backup Completo Finanças (.json)',
+    });
+
+    if (res === 'cancelled') return;
+    stampBackup();
+    if (res === 'failed') {
+      setBackupFallbackExt('json');
+      setBackupFallbackText(jsonText);
+    } else {
+      showToast('Backup completo (.json) pronto para salvar!');
+    }
+  };
+
   const handleExportCSV = async () => {
     if (!transactions.length) return showToast('Não há lançamentos para exportar.', 'error');
     const headers = ['ID', 'Data', 'Tipo', 'Categoria', 'Descrição', 'Valor'];
@@ -838,32 +945,65 @@ export default function App() {
       [csvCell(t.id), t.date, t.type, csvCell(t.category), csvCell(t.description), centsToInput(t.cents)].join(';')
     );
     const csv = '\uFEFF' + [headers.join(';'), ...rows].join('\n');
+    setBackupMenuOpen(false);
 
     const res = await exportFileAndroidSafe({
-      filename: `financas_backup_${todayISO()}.csv`,
+      filename: `financas_planilha_${todayISO()}.csv`,
       content: csv,
       mimeType: 'text/csv',
-      title: 'Backup Finanças (CSV)',
+      title: 'Planilha Finanças (.csv)',
     });
 
     if (res === 'cancelled') return;
-    const now = new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-    setLastBackup(now);
-    store.set(KEYS.BACKUP, now);
-    if (res === 'failed') setBackupFallbackText(csv);
-    else showToast('Backup CSV pronto para salvar!');
+    stampBackup();
+    if (res === 'failed') {
+      setBackupFallbackExt('csv');
+      setBackupFallbackText(csv);
+    } else {
+      showToast('Planilha CSV pronta para salvar!');
+    }
   };
 
+  // ----- Importar JSON Completo, CSV ou OFX -----
   const handleFileSelect = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
     try {
       const text = decodeText(await file.arrayBuffer());
-      if (/\.ofx$/i.test(file.name) || /<OFX>/i.test(text)) parseOFXText(text);
-      else parseCSVText(text);
+      const trimmed = text.replace(/^\uFEFF/, '').trim();
+      if (/\.json$/i.test(file.name) || trimmed.startsWith('{')) {
+        parseJSONBackupText(trimmed);
+      } else if (/\.ofx$/i.test(file.name) || /<OFX>/i.test(trimmed)) {
+        parseOFXText(trimmed);
+      } else {
+        parseCSVText(trimmed);
+      }
     } catch {
-      showToast('Não foi possível ler o arquivo.', 'error');
+      showToast('Não foi possível ler o arquivo selecionado.', 'error');
+    }
+  };
+
+  const parseJSONBackupText = (text) => {
+    try {
+      const parsed = JSON.parse(text);
+      const data = parsed?.data || parsed;
+      if (!Array.isArray(data?.transactions)) {
+        return showToast('Arquivo JSON inválido ou incompatível.', 'error');
+      }
+      const validTxs = data.transactions.filter((t) => t && t.date && t.type && typeof t.cents === 'number' && t.cents > 0);
+      const validCats = Array.isArray(data.categories) && data.categories.length ? data.categories : null;
+      const validGoals = data.itemGoals && typeof data.itemGoals === 'object' ? data.itemGoals : {};
+      const validNoSpend = Array.isArray(data.noSpend) ? data.noSpend : [];
+
+      setImportPreview(validTxs);
+      setImportExtraData({ categories: validCats, itemGoals: validGoals, noSpend: validNoSpend });
+      setImportErrors([]);
+      setImportMode('replace');
+      setImportSource('json');
+      setImportOpen(true);
+    } catch {
+      showToast('Erro ao interpretar o backup JSON.', 'error');
     }
   };
 
@@ -871,7 +1011,7 @@ export default function App() {
     const tag = (block, name) => (block.match(new RegExp(`<${name}>([^<\\r\\n]*)`, 'i')) || [])[1]?.trim() || '';
     const unescapeXml = (s) => s.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'");
     const learned = new Map();
-    transactions.forEach((t) => learned.set(`${t.type}|${norm(t.description)}`, t.category));
+    transactions.forEach((t) => learned.set(`${t.type}|${norm(baseItemName(t.description))}`, t.category));
 
     const items = [], errors = [];
     [...text.matchAll(/<STMTTRN>([\s\S]*?)<\/STMTTRN>/gi)].forEach((m, i) => {
@@ -896,6 +1036,7 @@ export default function App() {
 
     if (!items.length) return showToast('Nenhuma transação encontrada no OFX.', 'error');
     setImportPreview(items);
+    setImportExtraData(null);
     setImportErrors(errors);
     setImportMode('merge');
     setImportSource('ofx');
@@ -903,7 +1044,7 @@ export default function App() {
   };
 
   const parseCSVText = (text) => {
-    const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
     if (lines.length < 2) return showToast('Arquivo CSV vazio ou inválido.', 'error');
     const delim = lines[0].includes(';') ? ';' : ',';
     const head = parseCSVLine(lines[0], delim).map(norm);
@@ -919,7 +1060,7 @@ export default function App() {
       const cents = parseAmountToCents(c[ix.val]);
       if (!d || !t || isNaN(cents) || cents <= 0) { errors.push(`Linha ${i + 1}`); continue; }
       const desc = (ix.desc !== -1 ? c[ix.desc] : '').replace(/^'(?=[=+\-@])/, '');
-      const rawCat = ix.cat !== -1 ? c[ix.cat] : '';
+      const rawCat = (ix.cat !== -1 ? c[ix.cat] : '').trim();
       const foundCat = categories.find((x) => x.type === t && norm(x.id) === norm(rawCat));
       items.push({
         id: ix.id !== -1 && c[ix.id] ? c[ix.id] : generateId(),
@@ -931,6 +1072,7 @@ export default function App() {
       });
     }
     setImportPreview(items);
+    setImportExtraData(null);
     setImportErrors(errors);
     setImportMode('merge');
     setImportSource('csv');
@@ -938,24 +1080,84 @@ export default function App() {
   };
 
   const handleConfirmImport = () => {
-    if (!importPreview.length) return;
     const snapshot = transactions;
     const sig = (t) => `${t.date}|${t.type}|${t.category}|${t.description}|${t.cents}`;
-    if (importMode === 'replace') {
-      setTransactions(importPreview);
-      showToast(`${importPreview.length} lançamentos restaurados.`, 'success', snapshot);
+
+    // Se for Backup Completo JSON, restaura também categorias, metas e dias sem gasto
+    if (importSource === 'json' && importExtraData) {
+      if (importMode === 'replace') {
+        setTransactions(importPreview);
+        if (importExtraData.categories) setCategories(importExtraData.categories);
+        setItemGoals(importExtraData.itemGoals || {});
+        setNoSpend(importExtraData.noSpend || []);
+        showToast(
+          `Backup completo restaurado (${importPreview.length} lançamentos, ${importExtraData.categories?.length || categories.length} categorias)!`,
+          'success',
+          snapshot
+        );
+      } else {
+        const ids = new Set(transactions.map((t) => t.id));
+        const sigs = new Set(transactions.map(sig));
+        const fresh = importPreview.filter((t) => !ids.has(t.id) && !sigs.has(sig(t)));
+        setTransactions([...fresh, ...transactions]);
+
+        if (importExtraData.categories) {
+          setCategories((prev) => {
+            const map = new Map(prev.map((c) => [norm(c.id), { ...c }]));
+            importExtraData.categories.forEach((inc) => {
+              const k = norm(inc.id);
+              if (!map.has(k)) {
+                map.set(k, inc);
+              } else {
+                const cur = map.get(k);
+                const mergedItems = [...new Set([...(cur.items || []), ...(inc.items || [])])];
+                map.set(k, { ...cur, items: mergedItems });
+              }
+            });
+            return [...map.values()];
+          });
+        }
+        setItemGoals((prev) => ({ ...importExtraData.itemGoals, ...prev }));
+        setNoSpend((prev) => [...new Set([...prev, ...(importExtraData.noSpend || [])])]);
+        showToast(`Backup mesclado (+${fresh.length} lançamentos e categorias)!`, 'success', snapshot);
+      }
     } else {
-      const ids = new Set(transactions.map((t) => t.id));
-      const sigs = new Set(transactions.map(sig));
-      const fresh = importPreview.filter((t) => !ids.has(t.id) && !sigs.has(sig(t)));
-      const skipped = importPreview.length - fresh.length;
-      setTransactions([...fresh, ...transactions]);
-      showToast(`${fresh.length} novos adicionados${skipped ? ` (${skipped} duplicados)` : ''}.`, 'success', snapshot);
+      // CSV ou OFX: também cria automaticamente qualquer categoria nova que veio no arquivo
+      setCategories((prev) => {
+        const next = [...prev];
+        importPreview.forEach((t) => {
+          if (!next.some((c) => norm(c.id) === norm(t.category))) {
+            next.push({
+              id: t.category,
+              label: t.category,
+              type: t.type,
+              color: COLOR_PALETTE[next.length % COLOR_PALETTE.length],
+              iconName: 'Tag',
+              items: [baseItemName(t.description)],
+            });
+          }
+        });
+        return next;
+      });
+
+      if (importMode === 'replace') {
+        setTransactions(importPreview);
+        showToast(`${importPreview.length} lançamentos restaurados.`, 'success', snapshot);
+      } else {
+        const ids = new Set(transactions.map((t) => t.id));
+        const sigs = new Set(transactions.map(sig));
+        const fresh = importPreview.filter((t) => !ids.has(t.id) && !sigs.has(sig(t)));
+        const skipped = importPreview.length - fresh.length;
+        setTransactions([...fresh, ...transactions]);
+        showToast(`${fresh.length} novos adicionados${skipped ? ` (${skipped} duplicados)` : ''}.`, 'success', snapshot);
+      }
     }
+
     const latest = importPreview.map((t) => t.date).sort().pop();
     if (latest) setMonth(monthOf(latest));
     setImportOpen(false);
     setImportPreview([]);
+    setImportExtraData(null);
   };
 
   const activeBarData = sixMonthsTrend.list.find((m) => m.ym === (selectedBarMonth || month)) || sixMonthsTrend.list[5];
@@ -1003,21 +1205,21 @@ export default function App() {
             <input
               ref={fileInputRef}
               type="file"
-              accept=".csv,.ofx,text/csv,text/plain,application/x-ofx,*/*"
+              accept=".json,.csv,.ofx,application/json,text/csv,text/plain,application/x-ofx,*/*"
               onChange={handleFileSelect}
               className="hidden"
             />
             <button
               onClick={() => fileInputRef.current?.click()}
-              title="Importar extrato OFX ou backup CSV"
+              title="Importar backup (.json), planilha (.csv) ou extrato (.ofx)"
               className="inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200/70 rounded-xl cursor-pointer"
             >
               <Upload className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Importar</span>
             </button>
             <button
-              onClick={handleExportCSV}
-              title="Exportar backup CSV"
+              onClick={() => setBackupMenuOpen(true)}
+              title="Opções de backup e exportação"
               className="inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-sm cursor-pointer"
             >
               <Download className="w-3.5 h-3.5" />
@@ -1035,7 +1237,7 @@ export default function App() {
       </header>
 
       <main className="max-w-3xl mx-auto px-4 pt-4 space-y-5">
-        {/* Seletor de Mês (presente em Início, Gráficos e Metas) */}
+        {/* Seletor de Mês */}
         {activeTab !== 'categorias' && (
           <div className="flex items-center justify-between bg-white px-2 py-1.5 rounded-2xl border border-slate-200/80 shadow-xs">
             <button
@@ -1066,7 +1268,7 @@ export default function App() {
         {/* ================================================================ */}
         {activeTab === 'inicio' && (
           <div className="space-y-5">
-            {/* Hero Card: Quanto ainda posso gastar + Orçamento diário */}
+            {/* Hero Card */}
             <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-600 via-emerald-600 to-teal-700 text-white p-5 shadow-lg">
               <div className="flex items-start justify-between gap-2">
                 <div>
@@ -1115,7 +1317,7 @@ export default function App() {
               )}
             </section>
 
-            {/* Cards Financeiros (Saldo Acumulado, Receitas e Despesas do Mês) */}
+            {/* Cards Financeiros */}
             <section className="grid grid-cols-3 gap-2.5">
               <div className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-xs">
                 <p className="text-[11px] font-medium text-slate-500">Acumulado</p>
@@ -1180,7 +1382,7 @@ export default function App() {
               </section>
             )}
 
-            {/* Histórico Completo com Busca e Filtros */}
+            {/* Histórico Completo com Busca, Filtros e Duplicar */}
             <section className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
               <div className="p-4 border-b border-slate-100 space-y-3">
                 <div className="flex items-center justify-between">
@@ -1255,7 +1457,7 @@ export default function App() {
                     const Icon = meta.Icon;
                     const income = item.type === 'receita';
                     return (
-                      <div key={item.id} className="px-4 py-3.5 flex items-center justify-between gap-2.5">
+                      <div key={item.id} className="px-4 py-3.5 flex items-center justify-between gap-2">
                         <div className="flex items-center gap-3 min-w-0">
                           <div
                             className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0"
@@ -1270,12 +1472,21 @@ export default function App() {
                             </p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-1 shrink-0">
+                        <div className="flex items-center gap-0.5 shrink-0">
                           <span className={`text-sm font-extrabold mr-1 ${income ? 'text-emerald-500' : 'text-rose-500'}`}>
                             {income ? '+' : '-'} {formatCurrency(item.cents)}
                           </span>
                           <button
+                            aria-label="Repetir hoje"
+                            title="Repetir lançamento hoje"
+                            onClick={() => handleDuplicate(item)}
+                            className="p-1.5 text-slate-400 hover:text-emerald-500 rounded-lg cursor-pointer"
+                          >
+                            <Copy className="w-4 h-4" />
+                          </button>
+                          <button
                             aria-label="Editar"
+                            title="Editar"
                             onClick={() => handleEdit(item)}
                             className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg cursor-pointer"
                           >
@@ -1283,6 +1494,7 @@ export default function App() {
                           </button>
                           <button
                             aria-label="Excluir"
+                            title="Excluir"
                             onClick={() => handleDelete(item.id)}
                             className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg cursor-pointer"
                           >
@@ -1341,7 +1553,7 @@ export default function App() {
               </div>
             </section>
 
-            {/* Gráfico 1: Evolução 6 Meses (Receitas x Despesas) */}
+            {/* Gráfico 1: Evolução 6 Meses */}
             <section className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
@@ -1496,7 +1708,7 @@ export default function App() {
               )}
             </section>
 
-            {/* Gráfico 3: Top 5 Itens (Detalhamentos) do Mês */}
+            {/* Gráfico 3: Top 5 Itens do Mês */}
             <section className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs space-y-3.5">
               <h2 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
                 <TrendingDown className="w-4 h-4 text-rose-500" />
@@ -1533,7 +1745,6 @@ export default function App() {
         {/* ================================================================ */}
         {activeTab === 'metas' && (
           <div className="space-y-4">
-            {/* Alternador Por Itens / Por Categoria */}
             <div className="grid grid-cols-2 gap-1.5 p-1.5 bg-white rounded-2xl border border-slate-200/80 shadow-xs">
               <button
                 type="button"
@@ -1559,16 +1770,15 @@ export default function App() {
             {metasView === 'itens' && (
               <div className="space-y-4">
                 <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl px-4 py-3 text-xs text-slate-700">
-                  Defina o limite mensal de cada item (ex.: <strong>Lenço</strong> dentro de <strong>Higiene</strong>). O total de cada categoria é somado automaticamente.
+                  Defina o limite mensal de cada item (ex.: <strong>Lenço</strong> dentro de <strong>Higiene</strong>). Toque no <strong>+</strong> ao lado do item para registrar um gasto nele na hora.
                 </div>
 
                 {categories.filter((c) => c.type === 'despesa').map((cat) => {
                   const meta = getCategoryMeta(cat.id);
                   const Icon = meta.Icon;
-                  // Junta itens cadastrados na categoria + itens que já possuem meta ou gasto neste mês
                   const itemNames = new Set(cat.items || []);
                   Object.values(itemGoals).forEach((ig) => { if (ig.category === cat.id) itemNames.add(ig.label); });
-                  monthTx.forEach((t) => { if (t.category === cat.id && t.type === 'despesa') itemNames.add(t.description); });
+                  monthTx.forEach((t) => { if (t.category === cat.id && t.type === 'despesa') itemNames.add(baseItemName(t.description)); });
                   const itemsList = [...itemNames];
                   const catSumGoal = categoryGoalTotals[cat.id] || 0;
 
@@ -1631,11 +1841,21 @@ export default function App() {
                             return (
                               <div key={k} className="py-2.5 first:pt-1 last:pb-0 space-y-1.5">
                                 <div className="flex items-center justify-between gap-2">
-                                  <div className="min-w-0">
-                                    <p className="text-xs font-bold text-slate-800 truncate">{itemLabel}</p>
-                                    <p className="text-[11px] text-slate-500">
-                                      Gasto: <strong className="text-slate-700">{formatCurrency(spent)}</strong>
-                                    </p>
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <button
+                                      type="button"
+                                      title={`Lançar gasto em ${itemLabel}`}
+                                      onClick={() => openQuickWithPreset(cat.id, itemLabel)}
+                                      className="w-6 h-6 rounded-lg bg-slate-100 hover:bg-emerald-500/20 text-emerald-500 flex items-center justify-center shrink-0 cursor-pointer"
+                                    >
+                                      <Plus className="w-3.5 h-3.5" />
+                                    </button>
+                                    <div className="min-w-0">
+                                      <p className="text-xs font-bold text-slate-800 truncate">{itemLabel}</p>
+                                      <p className="text-[11px] text-slate-500">
+                                        Gasto: <strong className="text-slate-700">{formatCurrency(spent)}</strong>
+                                      </p>
+                                    </div>
                                   </div>
                                   <div className="flex items-center gap-1.5 shrink-0">
                                     <span className="text-[11px] text-slate-400">Meta R$</span>
@@ -1816,7 +2036,6 @@ export default function App() {
                       </div>
                     </div>
 
-                    {/* Lista de Itens (Detalhamentos) com adição rápida */}
                     <div className="flex flex-wrap gap-1.5">
                       {(cat.items || []).map((it) => (
                         <span
@@ -1862,7 +2081,7 @@ export default function App() {
       </main>
 
       {/* ================================================================== */}
-      {/* BARRA DE NAVEGAÇÃO INFERIOR (ESTILO APP NATIVO + BOTÃO CENTRAL +)  */}
+      {/* BARRA DE NAVEGAÇÃO INFERIOR                                        */}
       {/* ================================================================== */}
       <nav aria-label="Navegação principal" className="fs-nav fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90">
         <div className="max-w-3xl mx-auto px-2 pt-1.5 grid grid-cols-5 items-center">
@@ -1958,17 +2177,31 @@ export default function App() {
               ))}
             </div>
 
-            <div className="flex items-baseline gap-2 border-b-2 border-slate-200 focus-within:border-emerald-500 pb-1.5">
-              <span className="text-xl font-bold text-slate-400">R$</span>
-              <input
-                autoFocus
-                type="text"
-                inputMode="decimal"
-                placeholder="0,00"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                className="w-full text-3xl font-extrabold bg-transparent text-slate-900 focus:outline-none"
-              />
+            <div className="space-y-2">
+              <div className="flex items-baseline gap-2 border-b-2 border-slate-200 focus-within:border-emerald-500 pb-1.5">
+                <span className="text-xl font-bold text-slate-400">R$</span>
+                <input
+                  autoFocus
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="0,00"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  className="w-full text-3xl font-extrabold bg-transparent text-slate-900 focus:outline-none"
+                />
+              </div>
+              <div className="flex gap-1.5">
+                {[10, 20, 50, 100].map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => handleAddQuickValue(v)}
+                    className="flex-1 py-1 text-xs font-bold bg-slate-100 hover:bg-slate-200/70 text-slate-700 rounded-lg cursor-pointer"
+                  >
+                    +{v}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {!editingId && recents.length > 0 && (
@@ -2043,25 +2276,44 @@ export default function App() {
               />
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              {[['Hoje', todayISO()], ['Ontem', yesterdayISO()]].map(([lbl, v]) => (
-                <button
-                  key={lbl}
-                  type="button"
-                  onClick={() => setDate(v)}
-                  className={`px-3 py-1.5 text-xs font-bold rounded-full cursor-pointer ${
-                    date === v ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-700'
-                  }`}
-                >
-                  {lbl}
-                </button>
-              ))}
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="px-2.5 py-1 text-xs border border-slate-200 rounded-xl"
-              />
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5">
+                {[['Hoje', todayISO()], ['Ontem', yesterdayISO()]].map(([lbl, v]) => (
+                  <button
+                    key={lbl}
+                    type="button"
+                    onClick={() => setDate(v)}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-full cursor-pointer ${
+                      date === v ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-700'
+                    }`}
+                  >
+                    {lbl}
+                  </button>
+                ))}
+                <input
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="px-2.5 py-1 text-xs border border-slate-200 rounded-xl"
+                />
+              </div>
+
+              {!editingId && type === 'despesa' && (
+                <div className="flex items-center gap-1.5">
+                  <CreditCard className="w-3.5 h-3.5 text-slate-400" />
+                  <select
+                    aria-label="Parcelas"
+                    value={installments}
+                    onChange={(e) => setInstallments(Number(e.target.value))}
+                    className="px-2.5 py-1.5 text-xs font-bold border border-slate-200 rounded-xl"
+                  >
+                    <option value={1}>À vista (1x)</option>
+                    {[2, 3, 4, 5, 6, 8, 10, 12].map((n) => (
+                      <option key={n} value={n}>{n}x parcelas</option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
 
             {formError && (
@@ -2179,6 +2431,59 @@ export default function App() {
         </div>
       )}
 
+      {/* ================================================================== */}
+      {/* MODAL: OPÇÕES DE BACKUP (COMPLETO .JSON vs PLANILHA .CSV)          */}
+      {/* ================================================================== */}
+      {backupMenuOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center"
+          role="dialog"
+          aria-modal="true"
+          onClick={(e) => e.target === e.currentTarget && setBackupMenuOpen(false)}
+        >
+          <div className="fs-safe-bottom bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl p-5 space-y-4 shadow-2xl border border-slate-200">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-extrabold text-slate-900">Exportar dados</h3>
+              <button onClick={() => setBackupMenuOpen(false)} className="p-1.5 text-slate-400 rounded-xl cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleExportFullJSON}
+              className="w-full p-4 text-left rounded-2xl border-2 border-emerald-500 bg-emerald-50/60 hover:bg-emerald-50 flex items-start gap-3.5 cursor-pointer"
+            >
+              <div className="p-2.5 rounded-xl bg-emerald-600 text-white shrink-0">
+                <Database className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-sm font-extrabold text-slate-900">Backup Completo (.json)</p>
+                <p className="text-xs text-slate-600 mt-0.5">
+                  Salva <strong>tudo</strong>: lançamentos, categorias criadas (cores, ícones e itens) e metas. Ideal para restaurar o app depois.
+                </p>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleExportCSV}
+              className="w-full p-4 text-left rounded-2xl border border-slate-200 hover:bg-slate-50 flex items-start gap-3.5 cursor-pointer"
+            >
+              <div className="p-2.5 rounded-xl bg-slate-100 text-slate-700 shrink-0">
+                <FileSpreadsheet className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-sm font-extrabold text-slate-900">Planilha Excel (.csv)</p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Exporta apenas a tabela de lançamentos para abrir no Excel ou Google Planilhas.
+                </p>
+              </div>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Modal: Excluir Mês */}
       {monthDeleteOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4" role="alertdialog" aria-modal="true">
@@ -2199,18 +2504,18 @@ export default function App() {
         </div>
       )}
 
-      {/* Modal: Fallback Backup CSV */}
+      {/* Modal: Fallback Backup Texto */}
       {backupFallbackText && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4" role="dialog" aria-modal="true">
           <div className="bg-white rounded-3xl max-w-md w-full p-5 space-y-3 shadow-2xl border border-slate-200">
-            <h3 className="text-base font-extrabold text-slate-900">Copiar backup CSV</h3>
+            <h3 className="text-base font-extrabold text-slate-900">Copiar backup (.{backupFallbackExt})</h3>
             <textarea readOnly value={backupFallbackText} rows={6} className="w-full p-2.5 text-xs font-mono border border-slate-200 rounded-xl" />
             <div className="flex justify-end gap-2">
               <button onClick={() => setBackupFallbackText('')} className="px-4 py-2 text-xs font-bold bg-slate-100 rounded-xl cursor-pointer">
                 Fechar
               </button>
               <button
-                onClick={() => { navigator.clipboard?.writeText(backupFallbackText); setBackupFallbackText(''); showToast('CSV copiado!'); }}
+                onClick={() => { navigator.clipboard?.writeText(backupFallbackText); setBackupFallbackText(''); showToast('Backup copiado!'); }}
                 className="px-4 py-2 text-xs font-bold text-white bg-emerald-600 rounded-xl cursor-pointer"
               >
                 Copiar
@@ -2220,27 +2525,39 @@ export default function App() {
         </div>
       )}
 
-      {/* Modal: Importar OFX / CSV */}
+      {/* Modal: Importar JSON / OFX / CSV */}
       {importOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4" role="dialog" aria-modal="true">
           <div className="bg-white rounded-3xl max-w-lg w-full p-5 space-y-4 shadow-2xl border border-slate-200 max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between">
               <h3 className="text-base font-extrabold text-slate-900">
-                {importSource === 'ofx' ? 'Importar extrato OFX' : 'Restaurar backup CSV'}
+                {importSource === 'json'
+                  ? 'Restaurar Backup Completo (.json)'
+                  : importSource === 'ofx'
+                    ? 'Importar extrato OFX'
+                    : 'Importar planilha CSV'}
               </h3>
               <button onClick={() => setImportOpen(false)} className="p-1 text-slate-400 cursor-pointer"><X className="w-5 h-5" /></button>
             </div>
 
-            <p className="text-xs text-slate-600">
-              Registros válidos encontrados: <strong className="text-emerald-500">{importPreview.length}</strong>
-              {importErrors.length > 0 && ` (${importErrors.length} ignorados)`}
-            </p>
+            <div className="bg-slate-50 p-3 rounded-2xl text-xs space-y-1">
+              <p className="text-slate-700">
+                Lançamentos encontrados: <strong className="text-emerald-500">{importPreview.length}</strong>
+                {importErrors.length > 0 && ` (${importErrors.length} ignorados)`}
+              </p>
+              {importSource === 'json' && importExtraData && (
+                <p className="text-slate-500">
+                  Inclui <strong>{importExtraData.categories?.length || 0} categorias</strong> e{' '}
+                  <strong>{Object.keys(importExtraData.itemGoals || {}).length} metas por item</strong>.
+                </p>
+              )}
+            </div>
 
             <div className="grid grid-cols-2 gap-2">
               {[
-                ['merge', 'Mesclar', 'Adiciona só os novos sem duplicar.'],
-                ['replace', 'Substituir tudo', 'Troca os dados atuais por este backup.'],
-              ].filter(([m]) => importSource === 'csv' || m === 'merge').map(([m, tit, sub]) => (
+                ['replace', 'Substituir tudo', 'Restaura exatamente o estado deste backup.'],
+                ['merge', 'Mesclar', 'Mantém os atuais e soma os novos sem duplicar.'],
+              ].filter(([m]) => importSource !== 'ofx' || m === 'merge').map(([m, tit, sub]) => (
                 <button
                   key={m}
                   type="button"
@@ -2269,3 +2586,4 @@ export default function App() {
     </div>
   );
 }
+// FIM DO ARQUIVO src/App.jsx

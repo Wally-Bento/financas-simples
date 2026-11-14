@@ -5,15 +5,16 @@ import { Share } from '@capacitor/share';
 import {
   Wallet, TrendingUp, TrendingDown, Trash2, Download, Upload,
   Filter, PieChart, Utensils, Car, Home, Gamepad2, HeartPulse, GraduationCap,
-  Briefcase, DollarSign, Tag, CheckCircle2, AlertCircle, X, Clock,
+  Briefcase, DollarSign, Tag, CheckCircle2, AlertCircle, X,
   ChevronLeft, ChevronRight, Pencil, Search, Target, Sun, Moon, Plus, Bell,
   Scissors, Sparkles, Droplets, Shirt, PiggyBank, Layers, BarChart3,
   LayoutGrid, ShoppingBag, Coffee, Gift, Baby, Smartphone, Zap, Check,
   ArrowUpRight, ArrowDownRight, Copy, Database, FileSpreadsheet, CreditCard,
+  Palette,
 } from 'lucide-react';
 
 // ============================================================================
-// CONSTANTES, ÍCONES E PALETA
+// CONSTANTES, TEMAS, ÍCONES E PALETA
 // ============================================================================
 const KEYS = {
   TX: 'financas_simples_transactions_v3',
@@ -22,7 +23,41 @@ const KEYS = {
   ITEM_GOALS: 'financas_simples_item_goals_v1',
   BACKUP: 'financas_simples_last_backup_v2',
   THEME: 'financas_simples_theme_v1',
+  ACCENT: 'financas_accent_v1',
   NOSPEND: 'financas_simples_nospend_v1',
+};
+
+const ACCENT_THEMES = {
+  emerald: {
+    label: 'Esmeralda',
+    main: '#10b981',
+    dark: '#059669',
+    gradient: 'linear-gradient(135deg, #059669 0%, #0d9488 100%)',
+    shadow: 'rgba(16, 185, 129, 0.28)',
+    soft: 'rgba(16, 185, 129, 0.14)',
+    text: '#34d399',
+    textLight: '#059669',
+  },
+  violet: {
+    label: 'Violeta',
+    main: '#8b5cf6',
+    dark: '#7c3aed',
+    gradient: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)',
+    shadow: 'rgba(139, 92, 246, 0.30)',
+    soft: 'rgba(139, 92, 246, 0.15)',
+    text: '#a78bfa',
+    textLight: '#7c3aed',
+  },
+  ocean: {
+    label: 'Oceano',
+    main: '#0ea5e9',
+    dark: '#0284c7',
+    gradient: 'linear-gradient(135deg, #0284c7 0%, #2563eb 100%)',
+    shadow: 'rgba(14, 165, 233, 0.28)',
+    soft: 'rgba(14, 165, 233, 0.15)',
+    text: '#38bdf8',
+    textLight: '#0284c7',
+  },
 };
 
 const ICONS_MAP = {
@@ -268,35 +303,88 @@ const loadTransactions = () => {
 
 const sumBy = (list, type) => list.filter((t) => t.type === type).reduce((a, t) => a + t.cents, 0);
 
+// ============================================================================
+// SISTEMA DE TEMA E ESTILOS (DARK & LIGHT + 3 PALETAS)
+// ============================================================================
 const THEME_CSS = `
-.fs-root{font-variant-numeric:tabular-nums;padding-bottom:calc(5.25rem + env(safe-area-inset-bottom))}
-.fs-safe-top{padding-top:max(0.85rem,env(safe-area-inset-top))}
-.fs-safe-bottom{padding-bottom:max(1.25rem,env(safe-area-inset-bottom))}
-.fs-nav{padding-bottom:max(0.5rem,env(safe-area-inset-bottom))}
-.fs-toast{bottom:calc(5.25rem + env(safe-area-inset-bottom))}
-.fs-root button:focus-visible,.fs-root input:focus-visible,.fs-root select:focus-visible{outline:2px solid #10b981;outline-offset:2px}
-.no-scrollbar::-webkit-scrollbar{display:none}
-.no-scrollbar{-ms-overflow-style:none;scrollbar-width:none}
-.fs-root.dark{color-scheme:dark;background:#070d19;color:#e2e8f0}
-.dark .bg-slate-50{background:#070d19}
-.dark .bg-white{background:#0f172a}
-.dark .bg-slate-100{background:#1e293b}
-.dark .bg-slate-900{background:#1e293b;border-color:#334155}
-.dark .text-slate-900,.dark .hover\\:text-slate-900:hover{color:#f8fafc}
-.dark .text-slate-800{color:#e2e8f0}
-.dark .text-slate-700{color:#cbd5e1}
-.dark .text-slate-600{color:#94a3b8}
-.dark .text-slate-500{color:#64748b}
-.dark .text-slate-400{color:#64748b}
-.dark .border-slate-100,.dark .border-slate-200,.dark .border-slate-300{border-color:#1e293b}
-.dark .divide-slate-100>:not([hidden])~:not([hidden]){border-color:#1e293b}
-.dark .hover\\:bg-slate-50:hover,.dark .hover\\:bg-slate-100:hover{background:#1e293b}
-.dark .bg-emerald-50{background:rgba(16,185,129,.14)}
-.dark .bg-rose-50{background:rgba(244,63,94,.14)}
-.dark input,.dark select,.dark textarea{background:#0f172a;color:#f1f5f9;border-color:#334155}
-`;
+.fs-root {
+  --bg-app: #f4f6fa;
+  --bg-card: #ffffff;
+  --bg-elevated: #eef2f6;
+  --bg-glass: rgba(255, 255, 255, 0.86);
+  --border-subtle: rgba(15, 23, 42, 0.07);
+  --text-main: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  --card-shadow: 0 2px 14px rgba(15, 23, 42, 0.04);
 
-const inputCls = 'w-full px-3.5 py-2.5 text-sm border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500';
+  font-variant-numeric: tabular-nums;
+  background-color: var(--bg-app);
+  color: var(--text-main);
+  padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
+}
+
+.fs-root.dark {
+  color-scheme: dark;
+  --bg-app: #090d16;
+  --bg-card: #111827;
+  --bg-elevated: #1a2333;
+  --bg-glass: rgba(9, 13, 22, 0.86);
+  --border-subtle: rgba(255, 255, 255, 0.07);
+  --text-main: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted: #64748b;
+  --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+}
+
+.fs-glass-top {
+  background-color: var(--bg-glass);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border-bottom: 1px solid var(--border-subtle);
+  padding-top: max(0.85rem, env(safe-area-inset-top));
+}
+
+.fs-glass-nav {
+  background-color: var(--bg-glass);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border-top: 1px solid var(--border-subtle);
+  padding-bottom: max(0.55rem, env(safe-area-inset-bottom));
+}
+
+.fs-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--card-shadow);
+}
+
+.fs-elevated {
+  background-color: var(--bg-elevated);
+}
+
+.fs-text-main { color: var(--text-main); }
+.fs-text-sec { color: var(--text-secondary); }
+.fs-text-muted { color: var(--text-muted); }
+.fs-divider > :not([hidden]) ~ :not([hidden]) {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.fs-input {
+  background-color: var(--bg-elevated);
+  color: var(--text-main);
+  border: 1px solid var(--border-subtle);
+}
+.fs-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.fs-safe-bottom { padding-bottom: max(1.25rem, env(safe-area-inset-bottom)); }
+.fs-toast { bottom: calc(5.5rem + env(safe-area-inset-bottom)); }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+`;
 
 // ============================================================================
 // APP PRINCIPAL
@@ -318,9 +406,17 @@ export default function App() {
     const saved = store.get(KEYS.THEME);
     return saved ? saved === 'dark' : true;
   });
+  const [accentKey, setAccentKey] = useState(() => {
+    const saved = store.get(KEYS.ACCENT);
+    return saved && ACCENT_THEMES[saved] ? saved : 'emerald';
+  });
+
+  const accent = ACCENT_THEMES[accentKey] || ACCENT_THEMES.emerald;
+  const accentText = dark ? accent.text : accent.textLight;
 
   const [noSpend, setNoSpend] = useState(() => store.get(KEYS.NOSPEND, []));
   const [reminderTime, setReminderTime] = useState('20:00');
+  const [reminderModalOpen, setReminderModalOpen] = useState(false);
   const [backupMenuOpen, setBackupMenuOpen] = useState(false);
   const [backupFallbackText, setBackupFallbackText] = useState('');
   const [backupFallbackExt, setBackupFallbackExt] = useState('json');
@@ -364,7 +460,7 @@ export default function App() {
   const fileInputRef = useRef(null);
   const [importOpen, setImportOpen] = useState(false);
   const [importPreview, setImportPreview] = useState([]);
-  const [importExtraData, setImportExtraData] = useState(null); // { categories, itemGoals, noSpend } quando for JSON
+  const [importExtraData, setImportExtraData] = useState(null);
   const [importErrors, setImportErrors] = useState([]);
   const [importMode, setImportMode] = useState('merge');
   const [importSource, setImportSource] = useState('json');
@@ -388,11 +484,19 @@ export default function App() {
   useEffect(() => { store.set(KEYS.CATS, categories); }, [categories]);
   useEffect(() => { store.set(KEYS.ITEM_GOALS, itemGoals); }, [itemGoals]);
   useEffect(() => { store.set(KEYS.NOSPEND, noSpend); }, [noSpend]);
+  useEffect(() => { store.set(KEYS.ACCENT, accentKey); }, [accentKey]);
   useEffect(() => {
     store.set(KEYS.THEME, dark ? 'dark' : 'light');
-    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#070d19' : '#059669');
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#090d16' : '#f4f6fa');
   }, [dark]);
   useEffect(() => { setSelectedSlice(null); setSelectedBarMonth(null); }, [month]);
+
+  const cycleAccent = () => {
+    const order = ['emerald', 'violet', 'ocean'];
+    const next = order[(order.indexOf(accentKey) + 1) % order.length];
+    setAccentKey(next);
+    showToast(`Tema ${ACCENT_THEMES[next].label} ativado!`);
+  };
 
   const getCategoryMeta = (catId) => {
     const found = categories.find((c) => c.id === catId || norm(c.label) === norm(catId));
@@ -424,7 +528,6 @@ export default function App() {
     [monthTx]
   );
 
-  // Remove sufixo de parcela "(1/3)" ao agrupar metas do item
   const baseItemName = (desc) => String(desc || '').replace(/\s*\(\d+\/\d+\)\s*$/, '').trim();
 
   const spentByCatItem = useMemo(
@@ -436,7 +539,6 @@ export default function App() {
     [monthTx]
   );
 
-  // Soma automática das metas dos itens por categoria
   const categoryGoalTotals = useMemo(() => {
     const totals = {};
     Object.values(itemGoals).forEach((ig) => {
@@ -452,7 +554,6 @@ export default function App() {
     [categoryGoalTotals]
   );
 
-  // Quanto ainda posso gastar + Orçamento diário
   const today = todayISO();
   const budget = useMemo(() => {
     const base = totalAllGoals > 0 ? totalAllGoals : summary.receitas;
@@ -467,7 +568,6 @@ export default function App() {
     return { base, fromGoals: totalAllGoals > 0, remaining: base - summary.despesas, daily };
   }, [totalAllGoals, summary, month, monthTx, today]);
 
-  // Sequência de dias registrando
   const loggedDays = useMemo(() => new Set([...transactions.map((t) => t.date), ...noSpend]), [transactions, noSpend]);
   const streak = useMemo(() => {
     const d = new Date();
@@ -581,7 +681,6 @@ export default function App() {
       .sort((a, b) => b.date.localeCompare(a.date));
   }, [monthTx, filterType, filterCategory, search]);
 
-  // Sugestões de itens no modal de lançamento
   const suggestedItemsForCategory = useMemo(() => {
     const catMeta = getCategoryMeta(category);
     const seen = new Set();
@@ -676,7 +775,6 @@ export default function App() {
     const baseDesc = baseItemName(cleanDesc);
     const wasEditing = Boolean(editingId);
 
-    // Salva item novo automaticamente nas sugestões da categoria
     setCategories((prev) => prev.map((c) => {
       if (c.id !== category) return c;
       const exists = (c.items || []).some((it) => norm(it) === norm(baseDesc));
@@ -759,6 +857,7 @@ export default function App() {
   };
 
   const downloadReminder = async () => {
+    setReminderModalOpen(false);
     const res = await exportFileAndroidSafe({
       filename: 'lembrete-financas.ics',
       content: buildReminderICS(reminderTime),
@@ -1083,7 +1182,6 @@ export default function App() {
     const snapshot = transactions;
     const sig = (t) => `${t.date}|${t.type}|${t.category}|${t.description}|${t.cents}`;
 
-    // Se for Backup Completo JSON, restaura também categorias, metas e dias sem gasto
     if (importSource === 'json' && importExtraData) {
       if (importMode === 'replace') {
         setTransactions(importPreview);
@@ -1122,7 +1220,6 @@ export default function App() {
         showToast(`Backup mesclado (+${fresh.length} lançamentos e categorias)!`, 'success', snapshot);
       }
     } else {
-      // CSV ou OFX: também cria automaticamente qualquer categoria nova que veio no arquivo
       setCategories((prev) => {
         const next = [...prev];
         importPreview.forEach((t) => {
@@ -1166,42 +1263,48 @@ export default function App() {
   // RENDER
   // ==========================================================================
   return (
-    <div className={`fs-root ${dark ? 'dark' : ''} min-h-screen bg-slate-50 text-slate-800 font-sans`}>
+    <div
+      className={`fs-root ${dark ? 'dark' : ''} min-h-screen font-sans transition-colors duration-200`}
+      style={{ '--accent': accent.main, '--accent-soft': accent.soft }}
+    >
       <style>{THEME_CSS}</style>
 
       {/* Toast */}
       {toast && (
-        <div role="status" className="fs-toast fixed left-4 right-4 sm:left-auto sm:right-6 sm:w-96 z-50 flex items-center gap-2.5 bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-xl border border-slate-700">
+        <div role="status" className="fs-toast fixed left-4 right-4 sm:left-auto sm:right-6 sm:w-96 z-50 flex items-center gap-2.5 bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-2xl border border-white/10">
           {toast.variant === 'error'
             ? <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />
-            : <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />}
+            : <CheckCircle2 className="w-5 h-5 shrink-0" style={{ color: accent.main }} />}
           <span className="text-sm font-medium flex-1">{toast.text}</span>
           {toast.undoTo && (
-            <button onClick={handleUndo} className="text-sm font-bold text-emerald-400 cursor-pointer">
+            <button onClick={handleUndo} className="text-sm font-bold cursor-pointer" style={{ color: accent.text }}>
               Desfazer
             </button>
           )}
         </div>
       )}
 
-      {/* Top App Bar */}
-      <header className="fs-safe-top bg-white/90 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-30">
+      {/* Top App Bar (Glassmorphism com contraste corrigido no modo escuro) */}
+      <header className="fs-glass-top sticky top-0 z-30">
         <div className="max-w-3xl mx-auto px-4 pb-3 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center shadow-sm">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div
+              className="w-9 h-9 rounded-xl text-white flex items-center justify-center shrink-0"
+              style={{ background: accent.gradient, boxShadow: `0 4px 12px ${accent.shadow}` }}
+            >
               <Wallet className="w-5 h-5" />
             </div>
-            <div>
-              <h1 className="text-lg font-extrabold text-slate-900 tracking-tight leading-none">
+            <div className="min-w-0">
+              <h1 className="text-lg font-extrabold fs-text-main tracking-tight leading-none truncate">
                 Finanças
               </h1>
-              <p className="text-[11px] text-slate-500 mt-0.5">
+              <p className="text-[11px] fs-text-muted mt-0.5 truncate">
                 {lastBackup ? `Backup: ${lastBackup}` : 'Controle da Família'}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 shrink-0">
             <input
               ref={fileInputRef}
               type="file"
@@ -1212,7 +1315,7 @@ export default function App() {
             <button
               onClick={() => fileInputRef.current?.click()}
               title="Importar backup (.json), planilha (.csv) ou extrato (.ofx)"
-              className="inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200/70 rounded-xl cursor-pointer"
+              className="fs-elevated fs-text-sec inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-semibold rounded-xl cursor-pointer active:scale-95 transition-transform"
             >
               <Upload className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Importar</span>
@@ -1220,15 +1323,34 @@ export default function App() {
             <button
               onClick={() => setBackupMenuOpen(true)}
               title="Opções de backup e exportação"
-              className="inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-sm cursor-pointer"
+              style={{ background: accent.gradient, boxShadow: `0 3px 10px ${accent.shadow}` }}
+              className="inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-bold text-white rounded-xl cursor-pointer active:scale-95 transition-transform"
             >
               <Download className="w-3.5 h-3.5" />
               <span>Backup</span>
             </button>
             <button
+              onClick={() => setReminderModalOpen(true)}
+              aria-label="Lembrete diário"
+              title="Configurar lembrete diário na agenda"
+              className="fs-elevated fs-text-sec p-2 rounded-xl cursor-pointer active:scale-95 transition-transform"
+            >
+              <Bell className="w-4 h-4" />
+            </button>
+            <button
+              onClick={cycleAccent}
+              aria-label="Trocar cor do tema"
+              title={`Cor atual: ${accent.label} (toque para trocar)`}
+              className="fs-elevated p-2 rounded-xl cursor-pointer active:scale-95 transition-transform"
+              style={{ color: accentText }}
+            >
+              <Palette className="w-4 h-4" />
+            </button>
+            <button
               onClick={() => setDark((d) => !d)}
-              aria-label="Alternar tema"
-              className="p-2 text-slate-600 bg-slate-100 hover:bg-slate-200/70 rounded-xl cursor-pointer"
+              aria-label="Alternar claro/escuro"
+              title={dark ? 'Mudar para modo claro' : 'Mudar para modo escuro'}
+              className="fs-elevated fs-text-sec p-2 rounded-xl cursor-pointer active:scale-95 transition-transform"
             >
               {dark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
@@ -1236,27 +1358,27 @@ export default function App() {
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-4 pt-4 space-y-5">
+      <main className="max-w-3xl mx-auto px-4 pt-3.5 space-y-4">
         {/* Seletor de Mês */}
         {activeTab !== 'categorias' && (
-          <div className="flex items-center justify-between bg-white px-2 py-1.5 rounded-2xl border border-slate-200/80 shadow-xs">
+          <div className="fs-card flex items-center justify-between px-2 py-1.5 rounded-2xl">
             <button
               aria-label="Mês anterior"
               onClick={() => setMonth((m) => shiftMonth(m, -1))}
-              className="p-2 text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer"
+              className="p-2 fs-text-sec rounded-xl cursor-pointer active:scale-95 transition-transform"
             >
               <ChevronLeft className="w-5 h-5" />
             </button>
             <button
               onClick={() => setMonth(monthOf(todayISO()))}
-              className="px-4 py-1 text-sm font-bold text-slate-900 cursor-pointer"
+              className="px-4 py-1 text-sm font-extrabold fs-text-main cursor-pointer"
             >
               {monthLabel(month)}
             </button>
             <button
               aria-label="Próximo mês"
               onClick={() => setMonth((m) => shiftMonth(m, 1))}
-              className="p-2 text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer"
+              className="p-2 fs-text-sec rounded-xl cursor-pointer active:scale-95 transition-transform"
             >
               <ChevronRight className="w-5 h-5" />
             </button>
@@ -1264,15 +1386,18 @@ export default function App() {
         )}
 
         {/* ================================================================ */}
-        {/* ABA 1: INÍCIO (RESUMO + QUANTO POSSO GASTAR + HISTÓRICO)          */}
+        {/* ABA 1: INÍCIO                                                    */}
         {/* ================================================================ */}
         {activeTab === 'inicio' && (
-          <div className="space-y-5">
+          <div className="space-y-4">
             {/* Hero Card */}
-            <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-600 via-emerald-600 to-teal-700 text-white p-5 shadow-lg">
+            <section
+              className="relative overflow-hidden rounded-3xl text-white p-5"
+              style={{ background: accent.gradient, boxShadow: `0 12px 30px -6px ${accent.shadow}` }}
+            >
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-emerald-100">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-white/80">
                     {budget.base <= 0
                       ? 'Orçamento do mês'
                       : budget.remaining >= 0
@@ -1284,32 +1409,36 @@ export default function App() {
                       <p className="text-3xl sm:text-4xl font-extrabold tracking-tight mt-1">
                         {formatCurrency(Math.abs(budget.remaining))}
                       </p>
-                      <p className="text-xs text-emerald-100/90 mt-1">
-                        de {formatCurrency(budget.base)} ({budget.fromGoals ? 'soma das metas dos itens' : 'receitas do mês'})
+                      <p className="text-xs text-white/85 mt-1">
+                        de {formatCurrency(budget.base)} ({budget.fromGoals ? 'soma das metas' : 'receitas do mês'})
                       </p>
                     </>
                   ) : (
-                    <p className="text-sm text-emerald-50 mt-1.5">
+                    <p className="text-sm text-white/90 mt-1.5">
                       Defina metas na aba <strong>Metas</strong> ou registre uma receita para acompanhar seu limite.
                     </p>
                   )}
                 </div>
                 {streak > 0 && (
-                  <span className="shrink-0 text-[11px] font-bold bg-white/20 backdrop-blur-xs px-2.5 py-1 rounded-full">
+                  <span className="shrink-0 text-[11px] font-bold bg-black/20 backdrop-blur-xs px-2.5 py-1 rounded-full">
                     🔥 {streak} {streak === 1 ? 'dia' : 'dias'}
                   </span>
                 )}
               </div>
 
               {budget.daily && (
-                <div className="mt-4 pt-3.5 border-t border-white/15">
-                  <div className="flex justify-between text-xs text-emerald-50 mb-1.5">
-                    <span>Hoje: <strong>{formatCurrency(budget.daily.spentToday)}</strong> / {formatCurrency(budget.daily.allowance)}</span>
+                <div className="mt-4 pt-3.5 border-t border-white/20">
+                  <div className="flex justify-between text-xs text-white/90 mb-1.5">
+                    <span>
+                      Hoje: <strong>{formatCurrency(budget.daily.spentToday)}</strong> / {formatCurrency(budget.daily.allowance)}
+                    </span>
                     <span>{budget.daily.daysLeft}d restantes</span>
                   </div>
                   <div className="h-2 bg-black/20 rounded-full overflow-hidden">
                     <div
-                      className={`h-full rounded-full transition-all ${budget.daily.pct >= 100 ? 'bg-rose-400' : budget.daily.pct >= 80 ? 'bg-amber-300' : 'bg-white'}`}
+                      className={`h-full rounded-full transition-all ${
+                        budget.daily.pct >= 100 ? 'bg-amber-300' : budget.daily.pct >= 80 ? 'bg-amber-200' : 'bg-white'
+                      }`}
                       style={{ width: `${Math.min(budget.daily.pct, 100)}%` }}
                     />
                   </div>
@@ -1317,83 +1446,68 @@ export default function App() {
               )}
             </section>
 
-            {/* Cards Financeiros */}
+            {/* Cards Financeiros (Acumulado, Receitas, Despesas) */}
             <section className="grid grid-cols-3 gap-2.5">
-              <div className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-xs">
-                <p className="text-[11px] font-medium text-slate-500">Acumulado</p>
-                <p className={`text-sm sm:text-base font-extrabold mt-0.5 truncate ${summary.acumulado >= 0 ? 'text-slate-900' : 'text-rose-500'}`}>
+              <div className="fs-card p-3.5 rounded-2xl">
+                <p className="text-[11px] font-semibold fs-text-muted">Acumulado</p>
+                <p className={`text-sm sm:text-base font-extrabold mt-0.5 truncate ${summary.acumulado >= 0 ? 'fs-text-main' : 'text-rose-500'}`}>
                   {formatCurrency(summary.acumulado)}
                 </p>
-                <p className={`text-[10px] font-semibold mt-0.5 truncate ${summary.saldoMes >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                <p
+                  className="text-[10px] font-bold mt-0.5 truncate"
+                  style={{ color: summary.saldoMes >= 0 ? accentText : '#f43f5e' }}
+                >
                   Mês: {formatCurrency(summary.saldoMes)}
                 </p>
               </div>
-              <div className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-xs">
+              <div className="fs-card p-3.5 rounded-2xl">
                 <div className="flex items-center justify-between">
-                  <p className="text-[11px] font-medium text-slate-500">Receitas</p>
+                  <p className="text-[11px] font-semibold fs-text-muted">Receitas</p>
                   <ArrowUpRight className="w-3.5 h-3.5 text-emerald-500" />
                 </div>
                 <p className="text-sm sm:text-base font-extrabold text-emerald-500 mt-0.5 truncate">
                   {formatCurrency(summary.receitas)}
                 </p>
-                <p className="text-[10px] text-slate-400 mt-0.5">Entradas</p>
+                <p className="text-[10px] fs-text-muted mt-0.5">Entradas</p>
               </div>
-              <div className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-xs">
+              <div className="fs-card p-3.5 rounded-2xl">
                 <div className="flex items-center justify-between">
-                  <p className="text-[11px] font-medium text-slate-500">Despesas</p>
+                  <p className="text-[11px] font-semibold fs-text-muted">Despesas</p>
                   <ArrowDownRight className="w-3.5 h-3.5 text-rose-500" />
                 </div>
                 <p className="text-sm sm:text-base font-extrabold text-rose-500 mt-0.5 truncate">
                   {formatCurrency(summary.despesas)}
                 </p>
-                <p className="text-[10px] text-slate-400 mt-0.5">Saídas</p>
+                <p className="text-[10px] fs-text-muted mt-0.5">Saídas</p>
               </div>
             </section>
 
-            {/* Check-in Diário & Lembrete */}
-            {month === monthOf(today) && (
-              <section className="bg-white p-4 rounded-2xl border border-slate-200/80 flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-bold text-slate-800">
-                    {loggedDays.has(today) ? '✅ Dia de hoje registrado' : '📝 Nada lançado hoje ainda'}
-                  </p>
-                  <div className="flex items-center gap-1.5 mt-1 text-[11px] text-slate-500">
-                    <Bell className="w-3 h-3" />
-                    <input
-                      type="time"
-                      aria-label="Horário do lembrete"
-                      value={reminderTime}
-                      onChange={(e) => setReminderTime(e.target.value || '20:00')}
-                      className="px-1.5 py-0.5 text-[11px] border border-slate-200 rounded-md"
-                    />
-                    <button onClick={downloadReminder} className="underline text-emerald-600 font-semibold cursor-pointer">
-                      Lembrete na agenda
-                    </button>
-                  </div>
-                </div>
-                {!loggedDays.has(today) && (
-                  <button
-                    onClick={markNoSpend}
-                    className="px-3 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl cursor-pointer"
-                  >
-                    Hoje não gastei
-                  </button>
-                )}
-              </section>
+            {/* Faixa discreta de Check-in (só aparece se hoje ainda não foi registrado) */}
+            {month === monthOf(today) && !loggedDays.has(today) && (
+              <div className="fs-card px-4 py-2.5 rounded-2xl flex items-center justify-between gap-2">
+                <span className="text-xs font-semibold fs-text-sec">Nada lançado hoje ainda</span>
+                <button
+                  onClick={markNoSpend}
+                  style={{ backgroundColor: accent.soft, color: accentText }}
+                  className="px-3 py-1.5 text-xs font-extrabold rounded-xl cursor-pointer"
+                >
+                  Hoje não gastei
+                </button>
+              </div>
             )}
 
-            {/* Histórico Completo com Busca, Filtros e Duplicar */}
-            <section className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
-              <div className="p-4 border-b border-slate-100 space-y-3">
+            {/* Histórico Completo */}
+            <section className="fs-card rounded-3xl overflow-hidden">
+              <div className="p-4 space-y-3" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                 <div className="flex items-center justify-between">
-                  <h2 className="text-sm font-extrabold text-slate-900 flex items-center gap-1.5">
-                    <Filter className="w-4 h-4 text-emerald-500" />
+                  <h2 className="text-sm font-extrabold fs-text-main flex items-center gap-1.5">
+                    <Filter className="w-4 h-4" style={{ color: accent.main }} />
                     Lançamentos ({filteredTransactions.length})
                   </h2>
                   {monthTx.length > 0 && (
                     <button
                       onClick={() => setMonthDeleteOpen(true)}
-                      className="text-xs font-semibold text-rose-500 hover:underline cursor-pointer"
+                      className="text-xs font-bold text-rose-500 hover:underline cursor-pointer"
                     >
                       Limpar mês
                     </button>
@@ -1402,20 +1516,20 @@ export default function App() {
 
                 <div className="flex gap-2">
                   <div className="relative flex-1">
-                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <Search className="w-3.5 h-3.5 fs-text-muted absolute left-3 top-1/2 -translate-y-1/2" />
                     <input
                       type="search"
                       placeholder="Buscar item (ex: Lenço)..."
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
-                      className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-xl"
+                      className="fs-input w-full pl-8 pr-3 py-2 text-xs rounded-xl"
                     />
                   </div>
                   <select
                     aria-label="Tipo"
                     value={filterType}
                     onChange={(e) => setFilterType(e.target.value)}
-                    className="px-2.5 py-2 text-xs font-semibold border border-slate-200 rounded-xl"
+                    className="fs-input px-2.5 py-2 text-xs font-semibold rounded-xl"
                   >
                     <option value="todos">Todos</option>
                     <option value="despesa">Despesas</option>
@@ -1426,32 +1540,37 @@ export default function App() {
                 <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
                   <button
                     onClick={() => setFilterCategory('todas')}
-                    className={`shrink-0 px-3 py-1 rounded-full text-xs font-semibold cursor-pointer ${
-                      filterCategory === 'todas' ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600'
+                    style={filterCategory === 'todas' ? { backgroundColor: accent.main, color: '#fff' } : undefined}
+                    className={`shrink-0 px-3 py-1 rounded-full text-xs font-bold cursor-pointer ${
+                      filterCategory === 'todas' ? '' : 'fs-elevated fs-text-sec'
                     }`}
                   >
                     Todas
                   </button>
-                  {categories.map((c) => (
-                    <button
-                      key={c.id}
-                      onClick={() => setFilterCategory(c.id)}
-                      className={`shrink-0 px-3 py-1 rounded-full text-xs font-semibold cursor-pointer ${
-                        filterCategory === c.id ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600'
-                      }`}
-                    >
-                      {c.label}
-                    </button>
-                  ))}
+                  {categories.map((c) => {
+                    const active = filterCategory === c.id;
+                    return (
+                      <button
+                        key={c.id}
+                        onClick={() => setFilterCategory(c.id)}
+                        style={active ? { backgroundColor: accent.main, color: '#fff' } : undefined}
+                        className={`shrink-0 px-3 py-1 rounded-full text-xs font-bold cursor-pointer ${
+                          active ? '' : 'fs-elevated fs-text-sec'
+                        }`}
+                      >
+                        {c.label}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
               {filteredTransactions.length === 0 ? (
-                <div className="p-10 text-center text-xs text-slate-400">
+                <div className="p-10 text-center text-xs fs-text-muted">
                   Nenhum lançamento encontrado neste mês. Toque no botão <strong>+</strong> abaixo para começar.
                 </div>
               ) : (
-                <div className="divide-y divide-slate-100">
+                <div className="fs-divider">
                   {filteredTransactions.map((item) => {
                     const meta = getCategoryMeta(item.category);
                     const Icon = meta.Icon;
@@ -1461,13 +1580,13 @@ export default function App() {
                         <div className="flex items-center gap-3 min-w-0">
                           <div
                             className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0"
-                            style={{ backgroundColor: `${meta.color}18`, color: meta.color }}
+                            style={{ backgroundColor: `${meta.color}20`, color: meta.color }}
                           >
                             <Icon className="w-5 h-5" />
                           </div>
                           <div className="min-w-0">
-                            <p className="text-sm font-bold text-slate-900 truncate">{item.description}</p>
-                            <p className="text-[11px] text-slate-500 truncate">
+                            <p className="text-sm font-bold fs-text-main truncate">{item.description}</p>
+                            <p className="text-[11px] fs-text-muted truncate">
                               {meta.label} • {formatDateBR(item.date)}
                             </p>
                           </div>
@@ -1480,7 +1599,7 @@ export default function App() {
                             aria-label="Repetir hoje"
                             title="Repetir lançamento hoje"
                             onClick={() => handleDuplicate(item)}
-                            className="p-1.5 text-slate-400 hover:text-emerald-500 rounded-lg cursor-pointer"
+                            className="p-1.5 fs-text-muted hover:text-emerald-500 rounded-lg cursor-pointer"
                           >
                             <Copy className="w-4 h-4" />
                           </button>
@@ -1488,7 +1607,7 @@ export default function App() {
                             aria-label="Editar"
                             title="Editar"
                             onClick={() => handleEdit(item)}
-                            className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg cursor-pointer"
+                            className="p-1.5 fs-text-muted hover:text-sky-400 rounded-lg cursor-pointer"
                           >
                             <Pencil className="w-4 h-4" />
                           </button>
@@ -1496,7 +1615,7 @@ export default function App() {
                             aria-label="Excluir"
                             title="Excluir"
                             onClick={() => handleDelete(item.id)}
-                            className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg cursor-pointer"
+                            className="p-1.5 fs-text-muted hover:text-rose-500 rounded-lg cursor-pointer"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -1514,37 +1633,36 @@ export default function App() {
         {/* ABA 2: GRÁFICOS (DASHBOARD RÁPIDO E INTUITIVO)                   */}
         {/* ================================================================ */}
         {activeTab === 'graficos' && (
-          <div className="space-y-5">
-            {/* 4 Indicadores Rápidos */}
+          <div className="space-y-4">
             <section className="grid grid-cols-2 gap-3">
-              <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
-                <p className="text-[11px] font-semibold text-slate-500">Taxa de economia</p>
+              <div className="fs-card p-4 rounded-2xl">
+                <p className="text-[11px] font-semibold fs-text-muted">Taxa de economia</p>
                 <p className={`text-2xl font-extrabold mt-1 ${dashInsights.savingsRate >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                   {dashInsights.savingsRate}%
                 </p>
-                <p className="text-[11px] text-slate-400 mt-0.5">
+                <p className="text-[11px] fs-text-muted mt-0.5">
                   {summary.receitas > 0 ? 'das receitas poupadas' : 'registre uma receita'}
                 </p>
               </div>
-              <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
-                <p className="text-[11px] font-semibold text-slate-500">Média diária gasta</p>
-                <p className="text-2xl font-extrabold text-slate-900 mt-1">
+              <div className="fs-card p-4 rounded-2xl">
+                <p className="text-[11px] font-semibold fs-text-muted">Média diária gasta</p>
+                <p className="text-2xl font-extrabold fs-text-main mt-1">
                   {formatCurrency(dashInsights.dailyAvg)}
                 </p>
-                <p className="text-[11px] text-slate-400 mt-0.5">por dia neste mês</p>
+                <p className="text-[11px] fs-text-muted mt-0.5">por dia neste mês</p>
               </div>
-              <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
-                <p className="text-[11px] font-semibold text-slate-500">Maior categoria</p>
-                <p className="text-sm font-extrabold text-slate-900 mt-1 truncate">
+              <div className="fs-card p-4 rounded-2xl">
+                <p className="text-[11px] font-semibold fs-text-muted">Maior categoria</p>
+                <p className="text-sm font-extrabold fs-text-main mt-1 truncate">
                   {dashInsights.topCat ? dashInsights.topCat.label : '—'}
                 </p>
                 <p className="text-xs font-bold text-rose-500 mt-0.5">
                   {dashInsights.topCat ? formatCurrency(dashInsights.topCat.value) : 'R$ 0,00'}
                 </p>
               </div>
-              <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
-                <p className="text-[11px] font-semibold text-slate-500">Item mais caro</p>
-                <p className="text-sm font-extrabold text-slate-900 mt-1 truncate">
+              <div className="fs-card p-4 rounded-2xl">
+                <p className="text-[11px] font-semibold fs-text-muted">Item mais caro</p>
+                <p className="text-sm font-extrabold fs-text-main mt-1 truncate">
                   {dashInsights.topItem ? dashInsights.topItem.label : '—'}
                 </p>
                 <p className="text-xs font-bold text-rose-500 mt-0.5">
@@ -1553,22 +1671,22 @@ export default function App() {
               </div>
             </section>
 
-            {/* Gráfico 1: Evolução 6 Meses */}
-            <section className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
+            {/* Evolução 6 Meses */}
+            <section className="fs-card p-5 rounded-3xl space-y-4">
               <div className="flex items-center justify-between">
-                <h2 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
-                  <BarChart3 className="w-4 h-4 text-emerald-500" />
+                <h2 className="text-sm font-extrabold fs-text-main flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4" style={{ color: accent.main }} />
                   Receitas × Despesas (6 meses)
                 </h2>
-                <div className="flex items-center gap-3 text-[11px] font-semibold">
+                <div className="flex items-center gap-3 text-[11px] font-semibold fs-text-sec">
                   <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-xs bg-emerald-500" /> Entradas</span>
                   <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-xs bg-rose-500" /> Saídas</span>
                 </div>
               </div>
 
               {activeBarData && (
-                <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-50 px-3.5 py-2.5 rounded-2xl text-xs">
-                  <span className="font-bold text-slate-800">{monthLabel(activeBarData.ym)}</span>
+                <div className="fs-elevated flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 rounded-2xl text-xs">
+                  <span className="font-bold fs-text-main">{monthLabel(activeBarData.ym)}</span>
                   <div className="flex items-center gap-3">
                     <span className="text-emerald-500 font-bold">+{formatCurrency(activeBarData.receitas)}</span>
                     <span className="text-rose-500 font-bold">-{formatCurrency(activeBarData.despesas)}</span>
@@ -1587,7 +1705,7 @@ export default function App() {
                       type="button"
                       onClick={() => setSelectedBarMonth(m.ym)}
                       className={`flex flex-col items-center gap-1.5 p-1.5 rounded-2xl transition-all cursor-pointer ${
-                        isSel ? 'bg-slate-100 ring-1 ring-emerald-500/50' : ''
+                        isSel ? 'fs-elevated' : ''
                       }`}
                     >
                       <div className="flex items-end gap-1 h-28">
@@ -1600,7 +1718,10 @@ export default function App() {
                           style={{ height: `${m.despesas ? despH : 3}px` }}
                         />
                       </div>
-                      <span className={`text-[11px] font-bold ${isSel ? 'text-emerald-500' : 'text-slate-500'}`}>
+                      <span
+                        className="text-[11px] font-bold"
+                        style={{ color: isSel ? accentText : 'var(--text-muted)' }}
+                      >
                         {m.label}
                       </span>
                     </button>
@@ -1609,17 +1730,18 @@ export default function App() {
               </div>
             </section>
 
-            {/* Gráfico 2: Donut por Categoria + Detalhamento de Itens */}
-            <section className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
+            {/* Donut por Categoria + Detalhamento de Itens */}
+            <section className="fs-card p-5 rounded-3xl space-y-4">
               <div className="flex items-center justify-between">
-                <h2 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
-                  <PieChart className="w-4 h-4 text-emerald-500" />
+                <h2 className="text-sm font-extrabold fs-text-main flex items-center gap-2">
+                  <PieChart className="w-4 h-4" style={{ color: accent.main }} />
                   {selectedDonut ? `Itens de ${selectedDonut.label}` : 'Gastos por Categoria'}
                 </h2>
                 {selectedDonut && (
                   <button
                     onClick={() => setSelectedSlice(null)}
-                    className="text-xs font-bold text-emerald-500 cursor-pointer"
+                    style={{ color: accentText }}
+                    className="text-xs font-bold cursor-pointer"
                   >
                     Ver todas
                   </button>
@@ -1627,7 +1749,7 @@ export default function App() {
               </div>
 
               {donutSegments.length === 0 ? (
-                <p className="text-xs text-slate-400 text-center py-8">Sem despesas registradas em {monthLabel(month)}.</p>
+                <p className="text-xs fs-text-muted text-center py-8">Sem despesas registradas em {monthLabel(month)}.</p>
               ) : (
                 <>
                   <div className="flex flex-col sm:flex-row items-center gap-5">
@@ -1650,10 +1772,10 @@ export default function App() {
                         ))}
                       </svg>
                       <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none px-2">
-                        <span className="text-[10px] font-semibold text-slate-400 truncate max-w-24">
+                        <span className="text-[10px] font-semibold fs-text-muted truncate max-w-24">
                           {selectedDonut ? selectedDonut.label : 'Total gasto'}
                         </span>
-                        <span className="text-xs font-extrabold text-slate-900">
+                        <span className="text-xs font-extrabold fs-text-main">
                           {selectedDonut ? formatCompact(selectedDonut.value) : formatCompact(summary.despesas)}
                         </span>
                       </div>
@@ -1665,16 +1787,16 @@ export default function App() {
                           key={item.id}
                           onClick={() => setSelectedSlice((s) => (s === item.id ? null : item.id))}
                           className={`w-full flex items-center justify-between text-xs px-3 py-2 rounded-xl cursor-pointer ${
-                            selectedSlice === item.id ? 'bg-slate-100 ring-1 ring-emerald-500/40' : 'hover:bg-slate-50'
+                            selectedSlice === item.id ? 'fs-elevated' : ''
                           }`}
                         >
                           <span className="flex items-center gap-2 min-w-0">
                             <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
-                            <span className="font-bold text-slate-800 truncate">{item.label}</span>
+                            <span className="font-bold fs-text-main truncate">{item.label}</span>
                           </span>
                           <span className="shrink-0 ml-2">
-                            <strong className="text-slate-900">{item.percentage.toFixed(0)}%</strong>
-                            <span className="text-slate-400 ml-1.5">({formatCurrency(item.value)})</span>
+                            <strong className="fs-text-main">{item.percentage.toFixed(0)}%</strong>
+                            <span className="fs-text-muted ml-1.5">({formatCurrency(item.value)})</span>
                           </span>
                         </button>
                       ))}
@@ -1682,17 +1804,17 @@ export default function App() {
                   </div>
 
                   {selectedDonut && selectedCategoryBreakdown.length > 0 && (
-                    <div className="pt-3 border-t border-slate-100 space-y-2">
-                      <p className="text-xs font-bold text-slate-600 flex items-center gap-1.5">
-                        <Layers className="w-3.5 h-3.5 text-emerald-500" />
+                    <div className="pt-3 space-y-2" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+                      <p className="text-xs font-bold fs-text-sec flex items-center gap-1.5">
+                        <Layers className="w-3.5 h-3.5" style={{ color: accent.main }} />
                         Detalhamento dentro de {selectedDonut.label}
                       </p>
                       <div className="space-y-1.5">
                         {selectedCategoryBreakdown.map((sub) => (
-                          <div key={sub.key} className="flex items-center justify-between text-xs bg-slate-50 px-3 py-2 rounded-xl">
-                            <span className="font-semibold text-slate-800">{sub.label}</span>
+                          <div key={sub.key} className="fs-elevated flex items-center justify-between text-xs px-3 py-2 rounded-xl">
+                            <span className="font-semibold fs-text-main">{sub.label}</span>
                             <span>
-                              <strong className="text-slate-900">{formatCurrency(sub.value)}</strong>
+                              <strong className="fs-text-main">{formatCurrency(sub.value)}</strong>
                               {sub.goal > 0 && (
                                 <span className={`ml-1.5 font-bold ${sub.value > sub.goal ? 'text-rose-500' : 'text-emerald-500'}`}>
                                   / {formatCurrency(sub.goal)}
@@ -1708,25 +1830,25 @@ export default function App() {
               )}
             </section>
 
-            {/* Gráfico 3: Top 5 Itens do Mês */}
-            <section className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs space-y-3.5">
-              <h2 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+            {/* Top 5 Itens */}
+            <section className="fs-card p-5 rounded-3xl space-y-3.5">
+              <h2 className="text-sm font-extrabold fs-text-main flex items-center gap-2">
                 <TrendingDown className="w-4 h-4 text-rose-500" />
                 Top 5 Itens que mais pesaram
               </h2>
               {topItemsMonth.length === 0 ? (
-                <p className="text-xs text-slate-400 text-center py-4">Nenhum item gasto neste mês.</p>
+                <p className="text-xs fs-text-muted text-center py-4">Nenhum item gasto neste mês.</p>
               ) : (
                 <div className="space-y-3">
                   {topItemsMonth.map((it, idx) => (
                     <div key={`${it.category}-${it.label}`} className="space-y-1">
                       <div className="flex items-center justify-between text-xs">
-                        <span className="font-bold text-slate-800 truncate">
-                          {idx + 1}. {it.label} <span className="font-normal text-slate-400">({it.meta.label})</span>
+                        <span className="font-bold fs-text-main truncate">
+                          {idx + 1}. {it.label} <span className="font-normal fs-text-muted">({it.meta.label})</span>
                         </span>
-                        <span className="font-extrabold text-slate-900 shrink-0 ml-2">{formatCurrency(it.value)}</span>
+                        <span className="font-extrabold fs-text-main shrink-0 ml-2">{formatCurrency(it.value)}</span>
                       </div>
-                      <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div className="fs-elevated h-2 rounded-full overflow-hidden">
                         <div
                           className="h-full rounded-full transition-all"
                           style={{ width: `${it.pctBar}%`, backgroundColor: it.meta.color }}
@@ -1745,12 +1867,13 @@ export default function App() {
         {/* ================================================================ */}
         {activeTab === 'metas' && (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-1.5 p-1.5 bg-white rounded-2xl border border-slate-200/80 shadow-xs">
+            <div className="fs-card grid grid-cols-2 gap-1.5 p-1.5 rounded-2xl">
               <button
                 type="button"
                 onClick={() => setMetasView('itens')}
+                style={metasView === 'itens' ? { backgroundColor: accent.main, color: '#fff' } : undefined}
                 className={`py-2.5 text-xs font-extrabold rounded-xl transition-all cursor-pointer ${
-                  metasView === 'itens' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-600'
+                  metasView === 'itens' ? '' : 'fs-text-sec'
                 }`}
               >
                 1. Definir por Itens
@@ -1758,8 +1881,9 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setMetasView('categoria')}
+                style={metasView === 'categoria' ? { backgroundColor: accent.main, color: '#fff' } : undefined}
                 className={`py-2.5 text-xs font-extrabold rounded-xl transition-all cursor-pointer ${
-                  metasView === 'categoria' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-600'
+                  metasView === 'categoria' ? '' : 'fs-text-sec'
                 }`}
               >
                 2. Total por Categoria
@@ -1769,8 +1893,11 @@ export default function App() {
             {/* VISÃO 1: DEFINIR METAS NOS ITENS */}
             {metasView === 'itens' && (
               <div className="space-y-4">
-                <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl px-4 py-3 text-xs text-slate-700">
-                  Defina o limite mensal de cada item (ex.: <strong>Lenço</strong> dentro de <strong>Higiene</strong>). Toque no <strong>+</strong> ao lado do item para registrar um gasto nele na hora.
+                <div
+                  className="rounded-2xl px-4 py-3 text-xs fs-text-sec"
+                  style={{ backgroundColor: accent.soft }}
+                >
+                  Defina o limite mensal de cada item (ex.: <strong>Lenço</strong> dentro de <strong>Higiene</strong>). Toque no <strong>+</strong> ao lado do item para lançar um gasto nele na hora.
                 </div>
 
                 {categories.filter((c) => c.type === 'despesa').map((cat) => {
@@ -1783,26 +1910,27 @@ export default function App() {
                   const catSumGoal = categoryGoalTotals[cat.id] || 0;
 
                   return (
-                    <section key={cat.id} className="bg-white p-4 rounded-3xl border border-slate-200/80 shadow-xs space-y-3">
+                    <section key={cat.id} className="fs-card p-4 rounded-3xl space-y-3">
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2.5 min-w-0">
                           <div
                             className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
-                            style={{ backgroundColor: `${cat.color}18`, color: cat.color }}
+                            style={{ backgroundColor: `${cat.color}20`, color: cat.color }}
                           >
                             <Icon className="w-4 h-4" />
                           </div>
                           <div className="min-w-0">
-                            <h3 className="text-sm font-extrabold text-slate-900 truncate">{cat.label}</h3>
-                            <p className="text-[11px] text-slate-500">
-                              Total somado: <strong className="text-emerald-500">{formatCurrency(catSumGoal)}</strong>
+                            <h3 className="text-sm font-extrabold fs-text-main truncate">{cat.label}</h3>
+                            <p className="text-[11px] fs-text-muted">
+                              Total somado: <strong style={{ color: accentText }}>{formatCurrency(catSumGoal)}</strong>
                             </p>
                           </div>
                         </div>
                         <button
                           type="button"
                           onClick={() => { setAddingItemCat(addingItemCat === cat.id ? null : cat.id); setNewItemName(''); }}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 rounded-xl cursor-pointer"
+                          style={{ backgroundColor: accent.soft, color: accentText }}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-extrabold rounded-xl cursor-pointer"
                         >
                           <Plus className="w-3.5 h-3.5" /> Item
                         </button>
@@ -1815,12 +1943,13 @@ export default function App() {
                             placeholder="Nome do novo item..."
                             value={newItemName}
                             onChange={(e) => setNewItemName(e.target.value)}
-                            className="flex-1 px-3 py-1.5 text-xs border border-slate-200 rounded-xl"
+                            className="fs-input flex-1 px-3 py-1.5 text-xs rounded-xl"
                           />
                           <button
                             type="button"
                             onClick={() => handleAddItemFromMetas(cat.id)}
-                            className="px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 rounded-xl cursor-pointer"
+                            style={{ backgroundColor: accent.main }}
+                            className="px-3 py-1.5 text-xs font-bold text-white rounded-xl cursor-pointer"
                           >
                             Criar
                           </button>
@@ -1828,15 +1957,15 @@ export default function App() {
                       )}
 
                       {itemsList.length === 0 ? (
-                        <p className="text-xs text-slate-400">Nenhum item cadastrado. Toque em <strong>+ Item</strong> acima.</p>
+                        <p className="text-xs fs-text-muted">Nenhum item cadastrado. Toque em <strong>+ Item</strong> acima.</p>
                       ) : (
-                        <div className="divide-y divide-slate-100">
+                        <div className="fs-divider">
                           {itemsList.map((itemLabel) => {
                             const k = itemGoalKey(cat.id, itemLabel);
                             const limit = itemGoals[k]?.cents || 0;
                             const spent = spentByCatItem[k] || 0;
                             const pct = limit > 0 ? (spent / limit) * 100 : 0;
-                            const barColor = pct >= 100 ? 'bg-rose-500' : pct >= 80 ? 'bg-amber-500' : 'bg-emerald-500';
+                            const barColor = pct >= 100 ? '#f43f5e' : pct >= 80 ? '#f59e0b' : accent.main;
 
                             return (
                               <div key={k} className="py-2.5 first:pt-1 last:pb-0 space-y-1.5">
@@ -1846,19 +1975,20 @@ export default function App() {
                                       type="button"
                                       title={`Lançar gasto em ${itemLabel}`}
                                       onClick={() => openQuickWithPreset(cat.id, itemLabel)}
-                                      className="w-6 h-6 rounded-lg bg-slate-100 hover:bg-emerald-500/20 text-emerald-500 flex items-center justify-center shrink-0 cursor-pointer"
+                                      style={{ backgroundColor: accent.soft, color: accentText }}
+                                      className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0 cursor-pointer"
                                     >
                                       <Plus className="w-3.5 h-3.5" />
                                     </button>
                                     <div className="min-w-0">
-                                      <p className="text-xs font-bold text-slate-800 truncate">{itemLabel}</p>
-                                      <p className="text-[11px] text-slate-500">
-                                        Gasto: <strong className="text-slate-700">{formatCurrency(spent)}</strong>
+                                      <p className="text-xs font-bold fs-text-main truncate">{itemLabel}</p>
+                                      <p className="text-[11px] fs-text-muted">
+                                        Gasto: <strong className="fs-text-sec">{formatCurrency(spent)}</strong>
                                       </p>
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-1.5 shrink-0">
-                                    <span className="text-[11px] text-slate-400">Meta R$</span>
+                                    <span className="text-[11px] fs-text-muted">Meta R$</span>
                                     <input
                                       key={`${k}-${limit}`}
                                       type="text"
@@ -1867,13 +1997,16 @@ export default function App() {
                                       placeholder="0,00"
                                       onBlur={(e) => commitItemGoal(cat.id, itemLabel, e.target.value)}
                                       onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-                                      className="w-24 px-2.5 py-1.5 text-xs font-bold text-right border border-slate-200 rounded-xl"
+                                      className="fs-input w-24 px-2.5 py-1.5 text-xs font-bold text-right rounded-xl"
                                     />
                                   </div>
                                 </div>
                                 {limit > 0 && (
-                                  <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                    <div className={`h-full ${barColor} transition-all`} style={{ width: `${Math.min(pct, 100)}%` }} />
+                                  <div className="fs-elevated h-1.5 rounded-full overflow-hidden">
+                                    <div
+                                      className="h-full transition-all"
+                                      style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: barColor }}
+                                    />
                                   </div>
                                 )}
                               </div>
@@ -1890,14 +2023,16 @@ export default function App() {
             {/* VISÃO 2: TOTAIS CONSOLIDADOS POR CATEGORIA */}
             {metasView === 'categoria' && (
               <div className="space-y-4">
-                <div className="bg-white p-4 rounded-3xl border border-slate-200/80 shadow-xs flex items-center justify-between">
+                <div className="fs-card p-4 rounded-3xl flex items-center justify-between">
                   <div>
-                    <p className="text-xs font-semibold text-slate-500">Orçamento Total Planejado</p>
-                    <p className="text-2xl font-extrabold text-emerald-500 mt-0.5">{formatCurrency(totalAllGoals)}</p>
+                    <p className="text-xs font-semibold fs-text-muted">Orçamento Total Planejado</p>
+                    <p className="text-2xl font-extrabold mt-0.5" style={{ color: accentText }}>
+                      {formatCurrency(totalAllGoals)}
+                    </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-xs font-semibold text-slate-500">Total Gasto no Mês</p>
-                    <p className="text-lg font-extrabold text-slate-900 mt-0.5">{formatCurrency(summary.despesas)}</p>
+                    <p className="text-xs font-semibold fs-text-muted">Total Gasto no Mês</p>
+                    <p className="text-lg font-extrabold fs-text-main mt-0.5">{formatCurrency(summary.despesas)}</p>
                   </div>
                 </div>
 
@@ -1907,60 +2042,67 @@ export default function App() {
                   const catGoal = categoryGoalTotals[cat.id] || 0;
                   const catSpent = spentByCat[cat.id] || 0;
                   const pct = catGoal > 0 ? (catSpent / catGoal) * 100 : 0;
-                  const barColor = pct >= 100 ? 'bg-rose-500' : pct >= 80 ? 'bg-amber-500' : 'bg-emerald-500';
+                  const barColor = pct >= 100 ? '#f43f5e' : pct >= 80 ? '#f59e0b' : accent.main;
                   const catItemEntries = Object.values(itemGoals).filter((ig) => ig.category === cat.id && ig.cents > 0);
 
                   return (
-                    <section key={cat.id} className="bg-white p-4 rounded-3xl border border-slate-200/80 shadow-xs space-y-2.5">
+                    <section key={cat.id} className="fs-card p-4 rounded-3xl space-y-2.5">
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2.5 min-w-0">
                           <div
                             className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-                            style={{ backgroundColor: `${cat.color}18`, color: cat.color }}
+                            style={{ backgroundColor: `${cat.color}20`, color: cat.color }}
                           >
                             <Icon className="w-4 h-4" />
                           </div>
                           <div className="min-w-0">
-                            <h3 className="text-sm font-extrabold text-slate-900 truncate">{cat.label}</h3>
-                            <p className="text-xs text-slate-500">
-                              Gasto: <strong className="text-slate-800">{formatCurrency(catSpent)}</strong> de{' '}
-                              <strong className="text-emerald-500">{formatCurrency(catGoal)}</strong>
+                            <h3 className="text-sm font-extrabold fs-text-main truncate">{cat.label}</h3>
+                            <p className="text-xs fs-text-muted">
+                              Gasto: <strong className="fs-text-sec">{formatCurrency(catSpent)}</strong> de{' '}
+                              <strong style={{ color: accentText }}>{formatCurrency(catGoal)}</strong>
                             </p>
                           </div>
                         </div>
                         {catGoal > 0 && (
-                          <span className={`text-xs font-extrabold px-2.5 py-1 rounded-full ${
-                            pct >= 100 ? 'bg-rose-50 text-rose-500' : 'bg-emerald-50 text-emerald-500'
-                          }`}>
+                          <span
+                            className="text-xs font-extrabold px-2.5 py-1 rounded-full"
+                            style={{
+                              backgroundColor: pct >= 100 ? 'rgba(244,63,94,0.15)' : accent.soft,
+                              color: pct >= 100 ? '#f43f5e' : accentText,
+                            }}
+                          >
                             {pct.toFixed(0)}%
                           </span>
                         )}
                       </div>
 
                       {catGoal > 0 && (
-                        <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                          <div className={`h-full ${barColor} transition-all`} style={{ width: `${Math.min(pct, 100)}%` }} />
+                        <div className="fs-elevated h-2 rounded-full overflow-hidden">
+                          <div
+                            className="h-full transition-all"
+                            style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: barColor }}
+                          />
                         </div>
                       )}
 
                       {catItemEntries.length > 0 ? (
-                        <div className="pt-2 border-t border-slate-100 space-y-1">
-                          <p className="text-[11px] font-semibold text-slate-400">Composição da meta:</p>
+                        <div className="pt-2 space-y-1" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+                          <p className="text-[11px] font-semibold fs-text-muted">Composição da meta:</p>
                           {catItemEntries.map((ig) => {
                             const k = itemGoalKey(cat.id, ig.label);
                             const subSpent = spentByCatItem[k] || 0;
                             return (
-                              <div key={k} className="flex items-center justify-between text-xs text-slate-600">
+                              <div key={k} className="flex items-center justify-between text-xs fs-text-sec">
                                 <span>• {ig.label}</span>
                                 <span>
-                                  {formatCurrency(subSpent)} / <strong className="text-slate-800">{formatCurrency(ig.cents)}</strong>
+                                  {formatCurrency(subSpent)} / <strong className="fs-text-main">{formatCurrency(ig.cents)}</strong>
                                 </span>
                               </div>
                             );
                           })}
                         </div>
                       ) : (
-                        <p className="text-[11px] text-slate-400">Sem metas definidas nos itens desta categoria.</p>
+                        <p className="text-[11px] fs-text-muted">Sem metas definidas nos itens desta categoria.</p>
                       )}
                     </section>
                   );
@@ -1976,22 +2118,27 @@ export default function App() {
         {activeTab === 'categorias' && (
           <div className="space-y-4">
             <div className="flex items-center justify-between gap-2">
-              <div className="grid grid-cols-2 gap-1 p-1 bg-white rounded-2xl border border-slate-200/80">
-                {['despesa', 'receita'].map((tp) => (
-                  <button
-                    key={tp}
-                    onClick={() => setCatManageType(tp)}
-                    className={`px-4 py-2 text-xs font-extrabold rounded-xl cursor-pointer ${
-                      catManageType === tp ? 'bg-emerald-600 text-white' : 'text-slate-600'
-                    }`}
-                  >
-                    {tp === 'despesa' ? 'Despesas' : 'Receitas'}
-                  </button>
-                ))}
+              <div className="fs-card grid grid-cols-2 gap-1 p-1 rounded-2xl">
+                {['despesa', 'receita'].map((tp) => {
+                  const active = catManageType === tp;
+                  return (
+                    <button
+                      key={tp}
+                      onClick={() => setCatManageType(tp)}
+                      style={active ? { backgroundColor: accent.main, color: '#fff' } : undefined}
+                      className={`px-4 py-2 text-xs font-extrabold rounded-xl cursor-pointer ${
+                        active ? '' : 'fs-text-sec'
+                      }`}
+                    >
+                      {tp === 'despesa' ? 'Despesas' : 'Receitas'}
+                    </button>
+                  );
+                })}
               </div>
               <button
                 onClick={openCreateCategory}
-                className="inline-flex items-center gap-1.5 px-4 py-2.5 text-xs font-extrabold text-white bg-emerald-600 hover:bg-emerald-700 rounded-2xl shadow-sm cursor-pointer"
+                style={{ background: accent.gradient, boxShadow: `0 4px 12px ${accent.shadow}` }}
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 text-xs font-extrabold text-white rounded-2xl cursor-pointer"
               >
                 <Plus className="w-4 h-4" /> Nova Categoria
               </button>
@@ -2002,34 +2149,35 @@ export default function App() {
                 const meta = getCategoryMeta(cat.id);
                 const Icon = meta.Icon;
                 return (
-                  <section key={cat.id} className="bg-white p-4 rounded-3xl border border-slate-200/80 shadow-xs space-y-3">
+                  <section key={cat.id} className="fs-card p-4 rounded-3xl space-y-3">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-3 min-w-0">
                         <div
                           className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0"
-                          style={{ backgroundColor: `${cat.color}20`, color: cat.color }}
+                          style={{ backgroundColor: `${cat.color}22`, color: cat.color }}
                         >
                           <Icon className="w-5 h-5" />
                         </div>
                         <div className="min-w-0">
-                          <h3 className="text-sm font-extrabold text-slate-900 truncate">{cat.label}</h3>
-                          <p className="text-[11px] text-slate-500">
+                          <h3 className="text-sm font-extrabold fs-text-main truncate">{cat.label}</h3>
+                          <p className="text-[11px] fs-text-muted">
                             {(cat.items || []).length} {(cat.items || []).length === 1 ? 'item' : 'itens'}
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1 shrink-0">
+                      <div className="flex items-center gap-1.5 shrink-0">
                         <button
                           onClick={() => openEditCategory(cat)}
                           aria-label={`Editar ${cat.label}`}
-                          className="p-2 text-slate-500 hover:text-slate-900 bg-slate-100 rounded-xl cursor-pointer"
+                          className="fs-elevated fs-text-sec p-2 rounded-xl cursor-pointer"
                         >
                           <Pencil className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => handleDeleteCategory(cat)}
                           aria-label={`Excluir ${cat.label}`}
-                          className="p-2 text-rose-500 bg-rose-50 rounded-xl cursor-pointer"
+                          className="p-2 text-rose-500 rounded-xl cursor-pointer"
+                          style={{ backgroundColor: 'rgba(244, 63, 94, 0.14)' }}
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -2040,14 +2188,14 @@ export default function App() {
                       {(cat.items || []).map((it) => (
                         <span
                           key={it}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold bg-slate-100 text-slate-700 rounded-full"
+                          className="fs-elevated fs-text-sec inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-full"
                         >
                           {it}
                           <button
                             type="button"
                             aria-label={`Remover ${it}`}
                             onClick={() => handleRemoveInlineItem(cat.id, it)}
-                            className="text-slate-400 hover:text-rose-500 cursor-pointer"
+                            className="fs-text-muted hover:text-rose-500 cursor-pointer"
                           >
                             <X className="w-3 h-3" />
                           </button>
@@ -2062,12 +2210,13 @@ export default function App() {
                         value={inlineItemInputs[cat.id] || ''}
                         onChange={(e) => setInlineItemInputs((prev) => ({ ...prev, [cat.id]: e.target.value }))}
                         onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddInlineItem(cat.id))}
-                        className="flex-1 px-3 py-1.5 text-xs border border-slate-200 rounded-xl"
+                        className="fs-input flex-1 px-3 py-1.5 text-xs rounded-xl"
                       />
                       <button
                         type="button"
                         onClick={() => handleAddInlineItem(cat.id)}
-                        className="px-3 py-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 rounded-xl cursor-pointer"
+                        style={{ backgroundColor: accent.soft, color: accentText }}
+                        className="px-3 py-1.5 text-xs font-extrabold rounded-xl cursor-pointer"
                       >
                         + Add
                       </button>
@@ -2081,15 +2230,14 @@ export default function App() {
       </main>
 
       {/* ================================================================== */}
-      {/* BARRA DE NAVEGAÇÃO INFERIOR                                        */}
+      {/* BARRA DE NAVEGAÇÃO INFERIOR (GLASSMORPHISM + BOTÃO CENTRAL +)      */}
       {/* ================================================================== */}
-      <nav aria-label="Navegação principal" className="fs-nav fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90">
+      <nav aria-label="Navegação principal" className="fs-glass-nav fixed bottom-0 inset-x-0 z-40">
         <div className="max-w-3xl mx-auto px-2 pt-1.5 grid grid-cols-5 items-center">
           <button
             onClick={() => setActiveTab('inicio')}
-            className={`flex flex-col items-center gap-0.5 py-1 text-[11px] font-bold cursor-pointer ${
-              activeTab === 'inicio' ? 'text-emerald-500' : 'text-slate-400'
-            }`}
+            style={{ color: activeTab === 'inicio' ? accentText : 'var(--text-muted)' }}
+            className="flex flex-col items-center gap-0.5 py-1 text-[11px] font-bold cursor-pointer"
           >
             <Home className="w-5 h-5" />
             <span>Início</span>
@@ -2097,9 +2245,8 @@ export default function App() {
 
           <button
             onClick={() => setActiveTab('graficos')}
-            className={`flex flex-col items-center gap-0.5 py-1 text-[11px] font-bold cursor-pointer ${
-              activeTab === 'graficos' ? 'text-emerald-500' : 'text-slate-400'
-            }`}
+            style={{ color: activeTab === 'graficos' ? accentText : 'var(--text-muted)' }}
+            className="flex flex-col items-center gap-0.5 py-1 text-[11px] font-bold cursor-pointer"
           >
             <BarChart3 className="w-5 h-5" />
             <span>Gráficos</span>
@@ -2109,7 +2256,12 @@ export default function App() {
             <button
               onClick={openQuick}
               aria-label="Novo lançamento"
-              className="-mt-6 w-14 h-14 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-600/30 flex items-center justify-center active:scale-95 transition-transform cursor-pointer"
+              style={{
+                background: accent.gradient,
+                boxShadow: `0 6px 20px ${accent.shadow}`,
+                borderColor: 'var(--bg-app)',
+              }}
+              className="-mt-6 w-14 h-14 rounded-full border-4 text-white flex items-center justify-center active:scale-95 transition-transform cursor-pointer"
             >
               <Plus className="w-7 h-7" />
             </button>
@@ -2117,9 +2269,8 @@ export default function App() {
 
           <button
             onClick={() => setActiveTab('metas')}
-            className={`flex flex-col items-center gap-0.5 py-1 text-[11px] font-bold cursor-pointer ${
-              activeTab === 'metas' ? 'text-emerald-500' : 'text-slate-400'
-            }`}
+            style={{ color: activeTab === 'metas' ? accentText : 'var(--text-muted)' }}
+            className="flex flex-col items-center gap-0.5 py-1 text-[11px] font-bold cursor-pointer"
           >
             <Target className="w-5 h-5" />
             <span>Metas</span>
@@ -2127,9 +2278,8 @@ export default function App() {
 
           <button
             onClick={() => setActiveTab('categorias')}
-            className={`flex flex-col items-center gap-0.5 py-1 text-[11px] font-bold cursor-pointer ${
-              activeTab === 'categorias' ? 'text-emerald-500' : 'text-slate-400'
-            }`}
+            style={{ color: activeTab === 'categorias' ? accentText : 'var(--text-muted)' }}
+            className="flex flex-col items-center gap-0.5 py-1 text-[11px] font-bold cursor-pointer"
           >
             <LayoutGrid className="w-5 h-5" />
             <span>Categorias</span>
@@ -2142,44 +2292,48 @@ export default function App() {
       {/* ================================================================== */}
       {quickOpen && (
         <div
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center"
+          className="fixed inset-0 z-50 bg-black/65 backdrop-blur-xs flex items-end sm:items-center justify-center"
           role="dialog"
           aria-modal="true"
           onClick={(e) => e.target === e.currentTarget && setQuickOpen(false)}
         >
           <form
             onSubmit={handleSubmit}
-            className="fs-safe-bottom bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl p-5 space-y-4 shadow-2xl border border-slate-200 max-h-[92vh] overflow-y-auto"
+            className="fs-card fs-safe-bottom w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl p-5 space-y-4 max-h-[92vh] overflow-y-auto"
           >
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-extrabold text-slate-900">
+              <h3 className="text-base font-extrabold fs-text-main">
                 {editingId ? 'Editar lançamento' : 'Novo lançamento'}
               </h3>
-              <button type="button" onClick={() => setQuickOpen(false)} className="p-1.5 text-slate-400 rounded-xl cursor-pointer">
+              <button type="button" onClick={() => setQuickOpen(false)} className="p-1.5 fs-text-muted rounded-xl cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-100 rounded-2xl">
-              {['despesa', 'receita'].map((tp) => (
-                <button
-                  key={tp}
-                  type="button"
-                  onClick={() => handleTypeChange(tp)}
-                  className={`py-2 text-xs font-extrabold rounded-xl cursor-pointer ${
-                    type === tp
-                      ? `bg-white shadow-xs ${tp === 'despesa' ? 'text-rose-500' : 'text-emerald-500'}`
-                      : 'text-slate-500'
-                  }`}
-                >
-                  {tp === 'despesa' ? 'Despesa' : 'Receita'}
-                </button>
-              ))}
+            <div className="fs-elevated grid grid-cols-2 gap-1.5 p-1 rounded-2xl">
+              {['despesa', 'receita'].map((tp) => {
+                const active = type === tp;
+                return (
+                  <button
+                    key={tp}
+                    type="button"
+                    onClick={() => handleTypeChange(tp)}
+                    style={active ? { backgroundColor: 'var(--bg-card)' } : undefined}
+                    className={`py-2 text-xs font-extrabold rounded-xl cursor-pointer ${
+                      active
+                        ? tp === 'despesa' ? 'text-rose-500 shadow-xs' : 'text-emerald-500 shadow-xs'
+                        : 'fs-text-muted'
+                    }`}
+                  >
+                    {tp === 'despesa' ? 'Despesa' : 'Receita'}
+                  </button>
+                );
+              })}
             </div>
 
             <div className="space-y-2">
-              <div className="flex items-baseline gap-2 border-b-2 border-slate-200 focus-within:border-emerald-500 pb-1.5">
-                <span className="text-xl font-bold text-slate-400">R$</span>
+              <div className="flex items-baseline gap-2 pb-1.5" style={{ borderBottom: '2px solid var(--border-subtle)' }}>
+                <span className="text-xl font-bold fs-text-muted">R$</span>
                 <input
                   autoFocus
                   type="text"
@@ -2187,7 +2341,7 @@ export default function App() {
                   placeholder="0,00"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  className="w-full text-3xl font-extrabold bg-transparent text-slate-900 focus:outline-none"
+                  className="w-full text-3xl font-extrabold bg-transparent fs-text-main focus:outline-none"
                 />
               </div>
               <div className="flex gap-1.5">
@@ -2196,7 +2350,7 @@ export default function App() {
                     key={v}
                     type="button"
                     onClick={() => handleAddQuickValue(v)}
-                    className="flex-1 py-1 text-xs font-bold bg-slate-100 hover:bg-slate-200/70 text-slate-700 rounded-lg cursor-pointer"
+                    className="fs-elevated fs-text-sec flex-1 py-1 text-xs font-bold rounded-lg cursor-pointer"
                   >
                     +{v}
                   </button>
@@ -2206,14 +2360,14 @@ export default function App() {
 
             {!editingId && recents.length > 0 && (
               <div>
-                <p className="text-[11px] font-bold text-slate-400 mb-1.5">Repetir recente</p>
+                <p className="text-[11px] font-bold fs-text-muted mb-1.5">Repetir recente</p>
                 <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
                   {recents.map((r) => (
                     <button
                       key={r.id}
                       type="button"
                       onClick={() => { setCategory(r.category); setDescription(r.description); setAmount(centsToInput(r.cents)); }}
-                      className="shrink-0 px-3 py-1.5 text-xs font-semibold bg-slate-100 text-slate-700 rounded-full cursor-pointer"
+                      className="fs-elevated fs-text-sec shrink-0 px-3 py-1.5 text-xs font-semibold rounded-full cursor-pointer"
                     >
                       {r.description} · {formatCurrency(r.cents)}
                     </button>
@@ -2223,7 +2377,7 @@ export default function App() {
             )}
 
             <div>
-              <p className="text-[11px] font-bold text-slate-400 mb-1.5">1. Categoria</p>
+              <p className="text-[11px] font-bold fs-text-muted mb-1.5">1. Categoria</p>
               <div className="flex flex-wrap gap-1.5">
                 {catOrder.map((c) => {
                   const meta = getCategoryMeta(c.id);
@@ -2236,7 +2390,7 @@ export default function App() {
                       onClick={() => handleCategoryChange(c.id)}
                       style={on ? { backgroundColor: c.color, color: '#fff' } : undefined}
                       className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-full cursor-pointer ${
-                        on ? '' : 'bg-slate-100 text-slate-700'
+                        on ? '' : 'fs-elevated fs-text-sec'
                       }`}
                     >
                       <Icon className="w-3.5 h-3.5" /> {c.label}
@@ -2247,7 +2401,7 @@ export default function App() {
             </div>
 
             <div>
-              <p className="text-[11px] font-bold text-slate-400 mb-1.5">2. Item / Detalhamento</p>
+              <p className="text-[11px] font-bold fs-text-muted mb-1.5">2. Item / Detalhamento</p>
               {suggestedItemsForCategory.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mb-2">
                   {suggestedItemsForCategory.map((itemLabel) => {
@@ -2257,8 +2411,9 @@ export default function App() {
                         key={itemLabel}
                         type="button"
                         onClick={() => setDescription(itemLabel)}
+                        style={active ? { backgroundColor: accent.main, color: '#fff' } : undefined}
                         className={`px-3 py-1.5 text-xs font-bold rounded-full cursor-pointer ${
-                          active ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-700'
+                          active ? '' : 'fs-elevated fs-text-sec'
                         }`}
                       >
                         {itemLabel}
@@ -2272,40 +2427,44 @@ export default function App() {
                 placeholder="Selecione acima ou digite um item..."
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                className={inputCls}
+                className="fs-input w-full px-3.5 py-2.5 text-sm rounded-xl"
               />
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-1.5">
-                {[['Hoje', todayISO()], ['Ontem', yesterdayISO()]].map(([lbl, v]) => (
-                  <button
-                    key={lbl}
-                    type="button"
-                    onClick={() => setDate(v)}
-                    className={`px-3 py-1.5 text-xs font-bold rounded-full cursor-pointer ${
-                      date === v ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-700'
-                    }`}
-                  >
-                    {lbl}
-                  </button>
-                ))}
+                {[['Hoje', todayISO()], ['Ontem', yesterdayISO()]].map(([lbl, v]) => {
+                  const active = date === v;
+                  return (
+                    <button
+                      key={lbl}
+                      type="button"
+                      onClick={() => setDate(v)}
+                      style={active ? { backgroundColor: accent.main, color: '#fff' } : undefined}
+                      className={`px-3 py-1.5 text-xs font-bold rounded-full cursor-pointer ${
+                        active ? '' : 'fs-elevated fs-text-sec'
+                      }`}
+                    >
+                      {lbl}
+                    </button>
+                  );
+                })}
                 <input
                   type="date"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
-                  className="px-2.5 py-1 text-xs border border-slate-200 rounded-xl"
+                  className="fs-input px-2.5 py-1 text-xs rounded-xl"
                 />
               </div>
 
               {!editingId && type === 'despesa' && (
                 <div className="flex items-center gap-1.5">
-                  <CreditCard className="w-3.5 h-3.5 text-slate-400" />
+                  <CreditCard className="w-3.5 h-3.5 fs-text-muted" />
                   <select
                     aria-label="Parcelas"
                     value={installments}
                     onChange={(e) => setInstallments(Number(e.target.value))}
-                    className="px-2.5 py-1.5 text-xs font-bold border border-slate-200 rounded-xl"
+                    className="fs-input px-2.5 py-1.5 text-xs font-bold rounded-xl"
                   >
                     <option value={1}>À vista (1x)</option>
                     {[2, 3, 4, 5, 6, 8, 10, 12].map((n) => (
@@ -2324,8 +2483,9 @@ export default function App() {
 
             <button
               type="submit"
+              style={type === 'receita' ? { background: accent.gradient } : undefined}
               className={`w-full py-3.5 text-sm font-extrabold text-white rounded-2xl shadow-md cursor-pointer ${
-                type === 'despesa' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-emerald-600 hover:bg-emerald-700'
+                type === 'despesa' ? 'bg-rose-600 hover:bg-rose-700' : ''
               }`}
             >
               {editingId ? 'Salvar alterações' : `Registrar ${type}`}
@@ -2335,41 +2495,41 @@ export default function App() {
       )}
 
       {/* ================================================================== */}
-      {/* MODAL: CRIAR / EDITAR CATEGORIA (COR, ÍCONE, ITENS)                 */}
+      {/* MODAL: CRIAR / EDITAR CATEGORIA                                    */}
       {/* ================================================================== */}
       {catModalOpen && (
         <div
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center"
+          className="fixed inset-0 z-50 bg-black/65 backdrop-blur-xs flex items-end sm:items-center justify-center"
           role="dialog"
           aria-modal="true"
           onClick={(e) => e.target === e.currentTarget && setCatModalOpen(false)}
         >
           <form
             onSubmit={handleSaveCategory}
-            className="fs-safe-bottom bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl p-5 space-y-4 shadow-2xl border border-slate-200 max-h-[92vh] overflow-y-auto"
+            className="fs-card fs-safe-bottom w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl p-5 space-y-4 max-h-[92vh] overflow-y-auto"
           >
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-extrabold text-slate-900">
+              <h3 className="text-base font-extrabold fs-text-main">
                 {editingCatId ? 'Editar categoria' : 'Nova categoria'}
               </h3>
-              <button type="button" onClick={() => setCatModalOpen(false)} className="p-1.5 text-slate-400 rounded-xl cursor-pointer">
+              <button type="button" onClick={() => setCatModalOpen(false)} className="p-1.5 fs-text-muted rounded-xl cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-500 mb-1">Nome da categoria</label>
+              <label className="block text-xs font-bold fs-text-muted mb-1">Nome da categoria</label>
               <input
                 type="text"
                 placeholder="Ex: Pets, Assinaturas, Carro..."
                 value={catLabel}
                 onChange={(e) => setCatLabel(e.target.value)}
-                className={inputCls}
+                className="fs-input w-full px-3.5 py-2.5 text-sm rounded-xl"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-500 mb-1.5">Cor</label>
+              <label className="block text-xs font-bold fs-text-muted mb-1.5">Cor</label>
               <div className="flex flex-wrap gap-2">
                 {COLOR_PALETTE.map((hex) => (
                   <button
@@ -2386,7 +2546,7 @@ export default function App() {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-500 mb-1.5">Ícone</label>
+              <label className="block text-xs font-bold fs-text-muted mb-1.5">Ícone</label>
               <div className="grid grid-cols-7 gap-2">
                 {ICON_OPTIONS.map((name) => {
                   const Ic = ICONS_MAP[name] || Tag;
@@ -2398,7 +2558,7 @@ export default function App() {
                       onClick={() => setCatIconName(name)}
                       style={active ? { backgroundColor: catColor, color: '#fff' } : undefined}
                       className={`p-2 rounded-xl flex items-center justify-center cursor-pointer ${
-                        active ? '' : 'bg-slate-100 text-slate-600'
+                        active ? '' : 'fs-elevated fs-text-sec'
                       }`}
                     >
                       <Ic className="w-4 h-4" />
@@ -2409,7 +2569,7 @@ export default function App() {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-500 mb-1">
+              <label className="block text-xs font-bold fs-text-muted mb-1">
                 Itens desta categoria (separados por vírgula)
               </label>
               <input
@@ -2417,13 +2577,14 @@ export default function App() {
                 placeholder="Ex: Ração, Vacina, Banho"
                 value={catItemsText}
                 onChange={(e) => setCatItemsText(e.target.value)}
-                className={inputCls}
+                className="fs-input w-full px-3.5 py-2.5 text-sm rounded-xl"
               />
             </div>
 
             <button
               type="submit"
-              className="w-full py-3 text-sm font-extrabold text-white bg-emerald-600 hover:bg-emerald-700 rounded-2xl cursor-pointer"
+              style={{ background: accent.gradient }}
+              className="w-full py-3 text-sm font-extrabold text-white rounded-2xl cursor-pointer"
             >
               Salvar categoria
             </button>
@@ -2432,19 +2593,59 @@ export default function App() {
       )}
 
       {/* ================================================================== */}
-      {/* MODAL: OPÇÕES DE BACKUP (COMPLETO .JSON vs PLANILHA .CSV)          */}
+      {/* MODAL: LEMBRETE DIÁRIO NA AGENDA                                   */}
+      {/* ================================================================== */}
+      {reminderModalOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/65 backdrop-blur-xs flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          onClick={(e) => e.target === e.currentTarget && setReminderModalOpen(false)}
+        >
+          <div className="fs-card max-w-sm w-full rounded-3xl p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-extrabold fs-text-main flex items-center gap-2">
+                <Bell className="w-4 h-4" style={{ color: accent.main }} />
+                Lembrete diário
+              </h3>
+              <button onClick={() => setReminderModalOpen(false)} className="p-1 fs-text-muted cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-xs fs-text-sec">
+              Escolha um horário para a agenda do seu celular lembrar você de registrar os gastos do dia:
+            </p>
+            <input
+              type="time"
+              value={reminderTime}
+              onChange={(e) => setReminderTime(e.target.value || '20:00')}
+              className="fs-input w-full px-3.5 py-2.5 text-sm font-bold rounded-xl"
+            />
+            <button
+              onClick={downloadReminder}
+              style={{ background: accent.gradient }}
+              className="w-full py-3 text-xs font-extrabold text-white rounded-2xl cursor-pointer"
+            >
+              Adicionar na Agenda
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ================================================================== */}
+      {/* MODAL: OPÇÕES DE BACKUP                                            */}
       {/* ================================================================== */}
       {backupMenuOpen && (
         <div
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center"
+          className="fixed inset-0 z-50 bg-black/65 backdrop-blur-xs flex items-end sm:items-center justify-center"
           role="dialog"
           aria-modal="true"
           onClick={(e) => e.target === e.currentTarget && setBackupMenuOpen(false)}
         >
-          <div className="fs-safe-bottom bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl p-5 space-y-4 shadow-2xl border border-slate-200">
+          <div className="fs-card fs-safe-bottom w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl p-5 space-y-3.5">
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-extrabold text-slate-900">Exportar dados</h3>
-              <button onClick={() => setBackupMenuOpen(false)} className="p-1.5 text-slate-400 rounded-xl cursor-pointer">
+              <h3 className="text-base font-extrabold fs-text-main">Exportar dados</h3>
+              <button onClick={() => setBackupMenuOpen(false)} className="p-1.5 fs-text-muted rounded-xl cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -2452,15 +2653,16 @@ export default function App() {
             <button
               type="button"
               onClick={handleExportFullJSON}
-              className="w-full p-4 text-left rounded-2xl border-2 border-emerald-500 bg-emerald-50/60 hover:bg-emerald-50 flex items-start gap-3.5 cursor-pointer"
+              style={{ backgroundColor: accent.soft, borderColor: accent.main }}
+              className="w-full p-4 text-left rounded-2xl border flex items-start gap-3.5 cursor-pointer"
             >
-              <div className="p-2.5 rounded-xl bg-emerald-600 text-white shrink-0">
+              <div className="p-2.5 rounded-xl text-white shrink-0" style={{ backgroundColor: accent.main }}>
                 <Database className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-sm font-extrabold text-slate-900">Backup Completo (.json)</p>
-                <p className="text-xs text-slate-600 mt-0.5">
-                  Salva <strong>tudo</strong>: lançamentos, categorias criadas (cores, ícones e itens) e metas. Ideal para restaurar o app depois.
+                <p className="text-sm font-extrabold fs-text-main">Backup Completo (.json)</p>
+                <p className="text-xs fs-text-sec mt-0.5">
+                  Salva <strong>tudo</strong>: lançamentos, categorias criadas (cores, ícones e itens) e metas.
                 </p>
               </div>
             </button>
@@ -2468,14 +2670,14 @@ export default function App() {
             <button
               type="button"
               onClick={handleExportCSV}
-              className="w-full p-4 text-left rounded-2xl border border-slate-200 hover:bg-slate-50 flex items-start gap-3.5 cursor-pointer"
+              className="fs-elevated w-full p-4 text-left rounded-2xl flex items-start gap-3.5 cursor-pointer"
             >
-              <div className="p-2.5 rounded-xl bg-slate-100 text-slate-700 shrink-0">
+              <div className="fs-card p-2.5 rounded-xl fs-text-sec shrink-0">
                 <FileSpreadsheet className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-sm font-extrabold text-slate-900">Planilha Excel (.csv)</p>
-                <p className="text-xs text-slate-500 mt-0.5">
+                <p className="text-sm font-extrabold fs-text-main">Planilha Excel (.csv)</p>
+                <p className="text-xs fs-text-muted mt-0.5">
                   Exporta apenas a tabela de lançamentos para abrir no Excel ou Google Planilhas.
                 </p>
               </div>
@@ -2486,14 +2688,14 @@ export default function App() {
 
       {/* Modal: Excluir Mês */}
       {monthDeleteOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4" role="alertdialog" aria-modal="true">
-          <div className="bg-white rounded-3xl max-w-sm w-full p-5 space-y-4 shadow-2xl border border-slate-200">
-            <h3 className="text-base font-extrabold text-slate-900">Limpar {monthLabel(month)}?</h3>
-            <p className="text-xs text-slate-500">
+        <div className="fixed inset-0 z-50 bg-black/65 backdrop-blur-xs flex items-center justify-center p-4" role="alertdialog" aria-modal="true">
+          <div className="fs-card rounded-3xl max-w-sm w-full p-5 space-y-4">
+            <h3 className="text-base font-extrabold fs-text-main">Limpar {monthLabel(month)}?</h3>
+            <p className="text-xs fs-text-sec">
               Serão apagados <strong>{monthTx.length}</strong> lançamentos deste mês. Os outros meses continuam salvos.
             </p>
             <div className="flex justify-end gap-2">
-              <button onClick={() => setMonthDeleteOpen(false)} className="px-4 py-2 text-xs font-bold bg-slate-100 rounded-xl cursor-pointer">
+              <button onClick={() => setMonthDeleteOpen(false)} className="fs-elevated fs-text-sec px-4 py-2 text-xs font-bold rounded-xl cursor-pointer">
                 Cancelar
               </button>
               <button onClick={handleDeleteMonth} className="px-4 py-2 text-xs font-bold text-white bg-rose-600 rounded-xl cursor-pointer">
@@ -2506,17 +2708,18 @@ export default function App() {
 
       {/* Modal: Fallback Backup Texto */}
       {backupFallbackText && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4" role="dialog" aria-modal="true">
-          <div className="bg-white rounded-3xl max-w-md w-full p-5 space-y-3 shadow-2xl border border-slate-200">
-            <h3 className="text-base font-extrabold text-slate-900">Copiar backup (.{backupFallbackExt})</h3>
-            <textarea readOnly value={backupFallbackText} rows={6} className="w-full p-2.5 text-xs font-mono border border-slate-200 rounded-xl" />
+        <div className="fixed inset-0 z-50 bg-black/65 backdrop-blur-xs flex items-center justify-center p-4" role="dialog" aria-modal="true">
+          <div className="fs-card rounded-3xl max-w-md w-full p-5 space-y-3">
+            <h3 className="text-base font-extrabold fs-text-main">Copiar backup (.{backupFallbackExt})</h3>
+            <textarea readOnly value={backupFallbackText} rows={6} className="fs-input w-full p-2.5 text-xs font-mono rounded-xl" />
             <div className="flex justify-end gap-2">
-              <button onClick={() => setBackupFallbackText('')} className="px-4 py-2 text-xs font-bold bg-slate-100 rounded-xl cursor-pointer">
+              <button onClick={() => setBackupFallbackText('')} className="fs-elevated fs-text-sec px-4 py-2 text-xs font-bold rounded-xl cursor-pointer">
                 Fechar
               </button>
               <button
                 onClick={() => { navigator.clipboard?.writeText(backupFallbackText); setBackupFallbackText(''); showToast('Backup copiado!'); }}
-                className="px-4 py-2 text-xs font-bold text-white bg-emerald-600 rounded-xl cursor-pointer"
+                style={{ backgroundColor: accent.main }}
+                className="px-4 py-2 text-xs font-bold text-white rounded-xl cursor-pointer"
               >
                 Copiar
               </button>
@@ -2527,26 +2730,26 @@ export default function App() {
 
       {/* Modal: Importar JSON / OFX / CSV */}
       {importOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4" role="dialog" aria-modal="true">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-5 space-y-4 shadow-2xl border border-slate-200 max-h-[85vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 bg-black/65 backdrop-blur-xs flex items-center justify-center p-4" role="dialog" aria-modal="true">
+          <div className="fs-card rounded-3xl max-w-lg w-full p-5 space-y-4 max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-extrabold text-slate-900">
+              <h3 className="text-base font-extrabold fs-text-main">
                 {importSource === 'json'
                   ? 'Restaurar Backup Completo (.json)'
                   : importSource === 'ofx'
                     ? 'Importar extrato OFX'
                     : 'Importar planilha CSV'}
               </h3>
-              <button onClick={() => setImportOpen(false)} className="p-1 text-slate-400 cursor-pointer"><X className="w-5 h-5" /></button>
+              <button onClick={() => setImportOpen(false)} className="p-1 fs-text-muted cursor-pointer"><X className="w-5 h-5" /></button>
             </div>
 
-            <div className="bg-slate-50 p-3 rounded-2xl text-xs space-y-1">
-              <p className="text-slate-700">
-                Lançamentos encontrados: <strong className="text-emerald-500">{importPreview.length}</strong>
+            <div className="fs-elevated p-3 rounded-2xl text-xs space-y-1">
+              <p className="fs-text-sec">
+                Lançamentos encontrados: <strong style={{ color: accentText }}>{importPreview.length}</strong>
                 {importErrors.length > 0 && ` (${importErrors.length} ignorados)`}
               </p>
               {importSource === 'json' && importExtraData && (
-                <p className="text-slate-500">
+                <p className="fs-text-muted">
                   Inclui <strong>{importExtraData.categories?.length || 0} categorias</strong> e{' '}
                   <strong>{Object.keys(importExtraData.itemGoals || {}).length} metas por item</strong>.
                 </p>
@@ -2557,26 +2760,32 @@ export default function App() {
               {[
                 ['replace', 'Substituir tudo', 'Restaura exatamente o estado deste backup.'],
                 ['merge', 'Mesclar', 'Mantém os atuais e soma os novos sem duplicar.'],
-              ].filter(([m]) => importSource !== 'ofx' || m === 'merge').map(([m, tit, sub]) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setImportMode(m)}
-                  className={`p-3 text-left rounded-2xl border cursor-pointer ${
-                    importMode === m ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200'
-                  }`}
-                >
-                  <p className="text-xs font-extrabold text-slate-900">{tit}</p>
-                  <p className="text-[11px] text-slate-500 mt-0.5">{sub}</p>
-                </button>
-              ))}
+              ].filter(([m]) => importSource !== 'ofx' || m === 'merge').map(([m, tit, sub]) => {
+                const active = importMode === m;
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setImportMode(m)}
+                    style={active ? { borderColor: accent.main, backgroundColor: accent.soft } : { borderColor: 'var(--border-subtle)' }}
+                    className="p-3 text-left rounded-2xl border cursor-pointer"
+                  >
+                    <p className="text-xs font-extrabold fs-text-main">{tit}</p>
+                    <p className="text-[11px] fs-text-muted mt-0.5">{sub}</p>
+                  </button>
+                );
+              })}
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
-              <button onClick={() => setImportOpen(false)} className="px-4 py-2 text-xs font-bold bg-slate-100 rounded-xl cursor-pointer">
+              <button onClick={() => setImportOpen(false)} className="fs-elevated fs-text-sec px-4 py-2 text-xs font-bold rounded-xl cursor-pointer">
                 Cancelar
               </button>
-              <button onClick={handleConfirmImport} className="px-4 py-2 text-xs font-bold text-white bg-emerald-600 rounded-xl cursor-pointer">
+              <button
+                onClick={handleConfirmImport}
+                style={{ backgroundColor: accent.main }}
+                className="px-4 py-2 text-xs font-bold text-white rounded-xl cursor-pointer"
+              >
                 Importar agora
               </button>
             </div>

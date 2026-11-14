@@ -1283,4 +1283,133 @@ export default function App() {
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2 text-sm">
-                <div className="bg-emerald-5
+                <div className="bg-emerald-50 rounded-lg px-3 py-2">
+                  <p className="text-xs text-slate-500">Receitas</p>
+                  <p className="font-semibold text-emerald-600">{formatCurrency(summary.receitas)}</p>
+                </div>
+                <div className="bg-rose-50 rounded-lg px-3 py-2">
+                  <p className="text-xs text-slate-500">Despesas</p>
+                  <p className="font-semibold text-rose-600">{formatCurrency(summary.despesas)}</p>
+                </div>
+              </div>
+              <button type="button" onClick={handleExportCSV}
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700 underline underline-offset-2 hover:text-slate-900 cursor-pointer">
+                <Download className="w-3.5 h-3.5" /> Exportar backup antes de excluir
+              </button>
+            </div>
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2">
+              <button type="button" autoFocus onClick={() => setMonthDeleteOpen(false)}
+                className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 cursor-pointer">
+                Cancelar
+              </button>
+              <button type="button" onClick={handleDeleteMonth}
+                className="px-4 py-2 text-sm font-semibold text-white bg-rose-600 rounded-lg hover:bg-rose-700 cursor-pointer">
+                Excluir mês
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de importação */}
+      {importOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true">
+          <div className="bg-white rounded-2xl max-w-2xl w-full shadow-xl border border-slate-200 overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+              <h3 className="text-base font-bold text-slate-900">
+                {importSource === 'ofx' ? 'Importar extrato OFX' : 'Importar backup CSV'}
+              </h3>
+              <button aria-label="Fechar" onClick={() => setImportOpen(false)}
+                className="p-1 text-slate-400 hover:text-slate-700 rounded-lg cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+              <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                <span className="text-sm font-medium text-slate-700">
+                  Registros válidos: <strong className="text-emerald-600">{importPreview.length}</strong>
+                </span>
+                {importErrors.length > 0 && (
+                  <span className="text-xs font-medium text-amber-600">
+                    {importErrors.length} linha(s) ignorada(s): {importErrors.slice(0, 5).join(', ')}{importErrors.length > 5 ? '…' : ''}
+                  </span>
+                )}
+              </div>
+
+              {importSource === 'ofx' && (
+                <p className="text-xs text-slate-500">
+                  As categorias foram sugeridas automaticamente (e aprendidas com seus lançamentos). Revise depois com o lápis.
+                </p>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {[
+                  ['merge', 'Mesclar com dados atuais', 'Mantém o que você tem e adiciona só os novos (ignora duplicados).', 'emerald'],
+                  ['replace', 'Substituir todos os dados', 'Apaga a lista atual e restaura exatamente este backup. Dá para desfazer logo depois.', 'rose'],
+                ].filter(([mode]) => importSource === 'csv' || mode === 'merge').map(([mode, title, text, color]) => (
+                  <button
+                    key={mode} type="button" onClick={() => setImportMode(mode)}
+                    className={`p-3.5 text-left rounded-xl border transition-all cursor-pointer ${
+                      importMode === mode
+                        ? color === 'rose' ? 'border-rose-600 bg-rose-50/50 ring-1 ring-rose-600' : 'border-emerald-600 bg-emerald-50/50 ring-1 ring-emerald-600'
+                        : 'border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <p className="text-sm font-semibold text-slate-900">{title}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">{text}</p>
+                  </button>
+                ))}
+              </div>
+
+              {importPreview.length > 0 && (
+                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                  <div className="max-h-48 overflow-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-50 text-slate-600 border-b border-slate-200 sticky top-0">
+                        <tr>
+                          <th className="py-2 px-3">Data</th>
+                          <th className="py-2 px-3">Categoria</th>
+                          <th className="py-2 px-3">Descrição</th>
+                          <th className="py-2 px-3 text-right">Valor</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {importPreview.slice(0, 15).map((r, i) => (
+                          <tr key={i}>
+                            <td className="py-2 px-3 whitespace-nowrap">{formatDateBR(r.date)}</td>
+                            <td className="py-2 px-3">{r.category}</td>
+                            <td className="py-2 px-3 truncate max-w-44">{r.description}</td>
+                            <td className={`py-2 px-3 text-right font-semibold whitespace-nowrap ${r.type === 'receita' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                              {r.type === 'receita' ? '+' : '-'} {formatCurrency(r.cents)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {importPreview.length > 15 && (
+                    <div className="bg-slate-50 px-3 py-1.5 text-[11px] text-slate-500 border-t border-slate-200">
+                      Mostrando os 15 primeiros de {importPreview.length} registros.
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2">
+              <button type="button" onClick={() => setImportOpen(false)}
+                className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 cursor-pointer">
+                Cancelar
+              </button>
+              <button type="button" disabled={!importPreview.length} onClick={handleConfirmImport}
+                className="px-4 py-2 text-sm font-semibold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-50 cursor-pointer">
+                Confirmar importação
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

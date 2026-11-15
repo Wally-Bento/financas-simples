@@ -15,6 +15,7 @@ import {
   LayoutGrid, ShoppingBag, Coffee, Gift, Baby, Smartphone, Zap, Check,
   ArrowUpRight, ArrowDownRight, Copy, Database, FileSpreadsheet, CreditCard,
   Palette, Eye, EyeOff, CalendarPlus, Share2, FolderCheck, RotateCcw,
+  Calendar, ShieldCheck,
 } from 'lucide-react';
 
 // ============================================================================
@@ -25,6 +26,8 @@ const KEYS = {
   OLD_TX: 'financas_simples_transactions_v2',
   CATS: 'financas_categories_v1',
   ITEM_GOALS: 'financas_simples_item_goals_v1',
+  MONTHLY_BUDGETS: 'financas_monthly_budgets_v1',
+  SAFETY_BUFFER: 'financas_safety_buffer_v1',
   BACKUP: 'financas_simples_last_backup_v2',
   BACKUP_TS: 'financas_simples_last_backup_ts_v1',
   AUTO_BACKUP: 'financas_auto_backup_info_v1',
@@ -399,7 +402,22 @@ export default function App() {
     const saved = store.get(KEYS.CATS);
     return Array.isArray(saved) && saved.length ? saved : DEFAULT_CATEGORIES;
   });
-  const [itemGoals, setItemGoals] = useState(() => store.get(KEYS.ITEM_GOALS, {}));
+
+  // Orçamento isolado por mês: { "2026-11": { "Higiene|lenco": { category: "Higiene", label: "Lenço", cents: 5000 } } }
+  const [monthlyBudgets, setMonthlyBudgets] = useState(() => {
+    const saved = store.get(KEYS.MONTHLY_BUDGETS);
+    if (saved && typeof saved === 'object' && !Array.isArray(saved)) return saved;
+    // Migração automática do formato antigo global (itemGoals) apenas para o mês atual
+    const legacy = store.get(KEYS.ITEM_GOALS, {});
+    if (legacy && Object.keys(legacy).length > 0) {
+      return { [monthOf(todayISO())]: legacy };
+    }
+    return {};
+  });
+
+  // Reserva de segurança intocável (subtraída antes de liberar receita para orçamento)
+  const [safetyBufferCents, setSafetyBufferCents] = useState(() => Number(store.get(KEYS.SAFETY_BUFFER, 0)) || 0);
+
   const [lastBackup, setLastBackup] = useState(() => store.get(KEYS.BACKUP, null));
   const [lastBackupTs, setLastBackupTs] = useState(() => store.get(KEYS.BACKUP_TS, null));
   const [autoBackupInfo, setAutoBackupInfo] = useState(() => store.get(KEYS.AUTO_BACKUP, null));
@@ -431,12 +449,18 @@ export default function App() {
   const [quickOpen, setQuickOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [type, setType] = useState('despesa');
+  const [isRefund, setIsRefund] = useState(false); // Estorno/reembolso abate gasto do item
   const [category, setCategory] = useState('Higiene');
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(todayISO);
   const [installments, setInstallments] = useState(1);
   const [formError, setFormError] = useState('');
+
+  // Modal de Replicar Orçamento para Outros Meses
+  const [replicateModalOpen, setReplicateModalOpen] = useState(false);
+  const [replicateTargets, setReplicateTargets] = useState([]);
+  const [replicateMode, setReplicateMode] = useState('only_empty'); // 'only_empty' | 'overwrite'
 
   // Filtros do Histórico
   const [filterType, setFilterType] = useState('todos');
@@ -487,9 +511,13 @@ export default function App() {
     setToast(null);
   };
 
+  // Metas exclusivas do mês selecionado (isoladas dos demais meses)
+  const currentMonthGoals = useMemo(() => monthlyBudgets[month] || {}, [monthlyBudgets, month]);
+
   useEffect(() => { store.set(KEYS.TX, transactions); }, [transactions]);
   useEffect(() => { store.set(KEYS.CATS, categories); }, [categories]);
-  useEffect(() => { store.set(KEYS.ITEM_GOALS, itemGoals); }, [itemGoals]);
+  useEffect(() => { store.set(KEYS.MONTHLY_BUDGETS, monthlyBudgets); }, [monthlyBudgets]);
+  useEffect(() => { store.set(KEYS.SAFETY_BUFFER, safetyBufferCents); }, [safetyBufferCents]);
   useEffect(() => { store.set(KEYS.NOSPEND, noSpend); }, [noSpend]);
   useEffect(() => { store.set(KEYS.ACCENT, accentKey); }, [accentKey]);
   useEffect(() => { store.set(KEYS.PRIVACY, hideValues); }, [hideValues]);
@@ -518,9 +546,16 @@ export default function App() {
     const timer = setTimeout(async () => {
       const jsonText = JSON.stringify({
         app: 'Financas',
-        version: 2,
+        version: 3,
         exportedAt: new Date().toISOString(),
-        data: { transactions, categories, itemGoals, noSpend },
+        data: {
+          transactions,
+          categories,
+          monthlyBudgets,
+          safetyBufferCents,
+          itemGoals: currentMonthGoals,
+          noSpend,
+        },
       }, null, 2);
 
       let savedLocation = null;
@@ -564,7 +599,7 @@ export default function App() {
     }, 3000);
 
     return () => clearTimeout(timer);
-  }, [transactions, categories, itemGoals, noSpend]);
+  }, [transactions, categories, monthlyBudgets, safetyBufferCents, currentMonthGoals, noSpend]);
 
   const [, setDayTick] = useState(0);
   useEffect(() => {
@@ -577,6 +612,7 @@ export default function App() {
     const onKey = (e) => {
       if (e.key !== 'Escape') return;
       if (installDelete) setInstallDelete(null);
+      else if (replicateModalOpen) setReplicateModalOpen(false);
       else if (importOpen) setImportOpen(false);
       else if (backupFallbackText) setBackupFallbackText('');
       else if (monthDeleteOpen) setMonthDeleteOpen(false);
@@ -587,7 +623,7 @@ export default function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [installDelete, importOpen, backupFallbackText, monthDeleteOpen, backupMenuOpen, reminderModalOpen, catModalOpen, quickOpen]);
+  }, [installDelete, replicateModalOpen, importOpen, backupFallbackText, monthDeleteOpen, backupMenuOpen, reminderModalOpen, catModalOpen, quickOpen]);
 
   const cycleAccent = () => {
     const order = ['emerald', 'violet', 'ocean'];
@@ -609,32 +645,59 @@ export default function App() {
     return { id: catId, label: catId, type: 'despesa', color: '#64748b', iconName: 'Tag', items: [], Icon: Tag };
   };
 
-  // ----- Cálculos do Mês e Acumulados -----
+  // ----- Cálculos do Mês (Separando Receita Real, Estorno e Gasto Líquido) -----
   const monthTx = useMemo(() => transactions.filter((t) => monthOf(t.date) === month), [transactions, month]);
 
   const summary = useMemo(() => {
-    const receitas = sumBy(monthTx, 'receita');
-    const despesas = sumBy(monthTx, 'despesa');
+    // Receitas reais do mês (exclui estornos, pois estorno abate o gasto da categoria/item)
+    const receitas = monthTx
+      .filter((t) => t.type === 'receita' && !t.isRefund)
+      .reduce((a, t) => a + t.cents, 0);
+
+    // Gastos líquidos do mês (despesas menos estornos recebidos no mês)
+    const despesas = Math.max(
+      0,
+      monthTx.reduce((a, t) => {
+        if (t.type === 'despesa') return a + t.cents;
+        if (t.type === 'receita' && t.isRefund) return a - t.cents;
+        return a;
+      }, 0)
+    );
+
+    const acumulado =
+      transactions.filter((t) => t.type === 'receita').reduce((a, t) => a + t.cents, 0) -
+      transactions.filter((t) => t.type === 'despesa').reduce((a, t) => a + t.cents, 0);
+
     return {
       receitas,
       despesas,
       saldoMes: receitas - despesas,
-      acumulado: sumBy(transactions, 'receita') - sumBy(transactions, 'despesa'),
+      acumulado,
     };
   }, [monthTx, transactions]);
 
+  // Gasto líquido por categoria (despesas da categoria menos estornos daquela categoria)
   const spentByCat = useMemo(
-    () => monthTx.filter((t) => t.type === 'despesa').reduce((acc, t) => {
-      acc[t.category] = (acc[t.category] || 0) + t.cents;
+    () => monthTx.reduce((acc, t) => {
+      if (t.type === 'despesa') {
+        acc[t.category] = (acc[t.category] || 0) + t.cents;
+      } else if (t.type === 'receita' && t.isRefund) {
+        acc[t.category] = Math.max(0, (acc[t.category] || 0) - t.cents);
+      }
       return acc;
     }, {}),
     [monthTx]
   );
 
+  // Gasto líquido por item (despesas do item menos estornos daquele item)
   const spentByCatItem = useMemo(
-    () => monthTx.filter((t) => t.type === 'despesa').reduce((acc, t) => {
+    () => monthTx.reduce((acc, t) => {
       const k = itemGoalKey(t.category, baseItemName(t.description));
-      acc[k] = (acc[k] || 0) + t.cents;
+      if (t.type === 'despesa') {
+        acc[k] = (acc[k] || 0) + t.cents;
+      } else if (t.type === 'receita' && t.isRefund) {
+        acc[k] = Math.max(0, (acc[k] || 0) - t.cents);
+      }
       return acc;
     }, {}),
     [monthTx]
@@ -642,21 +705,35 @@ export default function App() {
 
   const categoryGoalTotals = useMemo(() => {
     const totals = {};
-    Object.values(itemGoals).forEach((ig) => {
+    Object.values(currentMonthGoals).forEach((ig) => {
       if (ig?.cents > 0) {
         totals[ig.category] = (totals[ig.category] || 0) + ig.cents;
       }
     });
     return totals;
-  }, [itemGoals]);
+  }, [currentMonthGoals]);
 
   const totalAllGoals = useMemo(
     () => Object.values(categoryGoalTotals).reduce((a, b) => a + b, 0),
     [categoryGoalTotals]
   );
 
+  // Lastro de Receita Real vs. Orçamento Alocado no Mês
+  const allocationStats = useMemo(() => {
+    const distributableIncome = Math.max(0, summary.receitas - safetyBufferCents);
+    const freeToAllocate = Math.max(0, distributableIncome - totalAllGoals);
+    const uncoveredDeficit = Math.max(0, totalAllGoals - distributableIncome);
+    const effectiveCoveredBudget = Math.min(totalAllGoals, distributableIncome);
+    return {
+      distributableIncome,
+      freeToAllocate,
+      uncoveredDeficit,
+      effectiveCoveredBudget,
+    };
+  }, [summary.receitas, safetyBufferCents, totalAllGoals]);
+
   const goalAlerts = useMemo(() => {
-    return Object.values(itemGoals)
+    return Object.values(currentMonthGoals)
       .filter((ig) => ig?.cents > 0)
       .map((ig) => {
         const k = itemGoalKey(ig.category, ig.label);
@@ -666,29 +743,45 @@ export default function App() {
       })
       .filter((x) => x.pct >= 85)
       .sort((a, b) => b.pct - a.pct);
-  }, [itemGoals, spentByCatItem]);
+  }, [currentMonthGoals, spentByCatItem]);
 
   const today = todayISO();
   const budget = useMemo(() => {
-    const base = totalAllGoals > 0 ? totalAllGoals : summary.receitas;
+    // O teto real de gasto nunca excede a receita distribuível do mês (evita gastar o que não ganhou)
+    const base = totalAllGoals > 0
+      ? Math.min(totalAllGoals, allocationStats.distributableIncome)
+      : allocationStats.distributableIncome;
+
     let daily = null;
     if (month === monthOf(today) && base > 0) {
       const daysLeft = daysInMonth(month) - Number(today.slice(8)) + 1;
-      const spent = (fn) => monthTx.filter((t) => t.type === 'despesa' && fn(t.date)).reduce((a, t) => a + t.cents, 0);
-      const allowance = Math.max(base - spent((d) => d < today), 0) / daysLeft;
-      const spentToday = spent((d) => d === today);
+      const spentNet = (fn) => monthTx.reduce((a, t) => {
+        if (!fn(t.date)) return a;
+        if (t.type === 'despesa') return a + t.cents;
+        if (t.type === 'receita' && t.isRefund) return a - t.cents;
+        return a;
+      }, 0);
+      const allowance = Math.max(base - Math.max(0, spentNet((d) => d < today)), 0) / daysLeft;
+      const spentToday = Math.max(0, spentNet((d) => d === today));
       daily = { allowance, spentToday, daysLeft, pct: allowance > 0 ? (spentToday / allowance) * 100 : spentToday > 0 ? 100 : 0 };
     }
     const usedPct = base > 0 ? (summary.despesas / base) * 100 : 0;
     const status = base <= 0
-      ? 'neutral'
+      ? (totalAllGoals > 0 ? 'warning' : 'neutral')
       : summary.despesas > base
         ? 'danger'
-        : usedPct >= 85
+        : usedPct >= 85 || allocationStats.uncoveredDeficit > 0
           ? 'warning'
           : 'ok';
-    return { base, fromGoals: totalAllGoals > 0, remaining: base - summary.despesas, usedPct, status, daily };
-  }, [totalAllGoals, summary, month, monthTx, today]);
+    return {
+      base,
+      fromGoals: totalAllGoals > 0,
+      remaining: base - summary.despesas,
+      usedPct,
+      status,
+      daily,
+    };
+  }, [totalAllGoals, allocationStats, summary, month, monthTx, today]);
 
   const loggedDays = useMemo(() => new Set([...transactions.map((t) => t.date), ...noSpend]), [transactions, noSpend]);
   const streak = useMemo(() => {
@@ -701,12 +794,13 @@ export default function App() {
 
   // Dados dos Gráficos
   const donutSegments = useMemo(() => {
-    const total = summary.despesas;
+    const total = Object.values(spentByCat).reduce((a, b) => a + b, 0);
     if (!total) return [];
     const radius = 52;
     const circ = 2 * Math.PI * radius;
     let acc = 0;
     return Object.entries(spentByCat)
+      .filter(([, value]) => value > 0)
       .map(([id, value]) => ({
         ...getCategoryMeta(id),
         value,
@@ -723,7 +817,7 @@ export default function App() {
         acc += item.percentage;
         return seg;
       });
-  }, [spentByCat, summary.despesas, categories]);
+  }, [spentByCat, categories]);
 
   const selectedDonut = donutSegments.find((s) => s.id === selectedSlice);
 
@@ -733,34 +827,49 @@ export default function App() {
     if (!catTotal) return [];
     const map = new Map();
     monthTx
-      .filter((t) => t.type === 'despesa' && t.category === selectedSlice)
+      .filter((t) => t.category === selectedSlice)
       .forEach((t) => {
         const clean = baseItemName(t.description);
         const k = norm(clean);
         const cur = map.get(k) || { key: itemGoalKey(selectedSlice, clean), label: clean, value: 0 };
-        cur.value += t.cents;
+        if (t.type === 'despesa') cur.value += t.cents;
+        else if (t.type === 'receita' && t.isRefund) cur.value = Math.max(0, cur.value - t.cents);
         map.set(k, cur);
       });
     return [...map.values()]
+      .filter((it) => it.value > 0)
       .sort((a, b) => b.value - a.value)
       .map((it) => ({
         ...it,
         percentage: (it.value / catTotal) * 100,
-        goal: itemGoals[it.key]?.cents || 0,
+        goal: currentMonthGoals[it.key]?.cents || 0,
       }));
-  }, [selectedSlice, monthTx, spentByCat, itemGoals]);
+  }, [selectedSlice, monthTx, spentByCat, currentMonthGoals]);
 
   const sixMonthsTrend = useMemo(() => {
     const list = [];
     for (let i = -5; i <= 0; i++) {
       const ym = shiftMonth(month, i);
       const txs = transactions.filter((t) => monthOf(t.date) === ym);
-      const rec = sumBy(txs, 'receita');
-      const desp = sumBy(txs, 'despesa');
+      const rec = txs.filter((t) => t.type === 'receita' && !t.isRefund).reduce((a, t) => a + t.cents, 0);
+      const desp = Math.max(
+        0,
+        txs.reduce((a, t) => (t.type === 'despesa' ? a + t.cents : t.isRefund ? a - t.cents : a), 0)
+      );
       list.push({ ym, label: shortMonthLabel(ym), receitas: rec, despesas: desp, saldo: rec - desp });
     }
     const maxVal = Math.max(1, ...list.flatMap((m) => [m.receitas, m.despesas]));
     return { list, maxVal };
+  }, [transactions, month]);
+
+  const futureInstallments = useMemo(() => {
+    return [1, 2, 3].map((offset) => {
+      const ym = shiftMonth(month, offset);
+      const totalCents = transactions
+        .filter((t) => monthOf(t.date) === ym && t.type === 'despesa' && t.groupId)
+        .reduce((a, t) => a + t.cents, 0);
+      return { ym, label: monthLabel(ym), totalCents };
+    });
   }, [transactions, month]);
 
   const topItemsMonth = useMemo(() => {
@@ -843,8 +952,11 @@ export default function App() {
   const catOrder = useMemo(() => {
     const count = {};
     transactions.forEach((t) => { count[t.category] = (count[t.category] || 0) + 1; });
-    return categories.filter((c) => c.type === type).sort((a, b) => (count[b.id] || 0) - (count[a.id] || 0));
-  }, [transactions, categories, type]);
+    const filtered = isRefund
+      ? categories.filter((c) => c.type === 'despesa')
+      : categories.filter((c) => c.type === type);
+    return filtered.sort((a, b) => (count[b.id] || 0) - (count[a.id] || 0));
+  }, [transactions, categories, type, isRefund]);
 
   const recents = useMemo(() => {
     const seen = new Set(), out = [];
@@ -862,6 +974,7 @@ export default function App() {
   // ----- Ações de Lançamento -----
   const resetForm = () => {
     setEditingId(null);
+    setIsRefund(false);
     setDescription('');
     setAmount('');
     setDate(todayISO());
@@ -895,10 +1008,19 @@ export default function App() {
 
   const handleTypeChange = (newType) => {
     setType(newType);
+    setIsRefund(false);
     const first = categories.find((c) => c.type === newType);
     if (first) setCategory(first.id);
     setDescription('');
     setInstallments(1);
+  };
+
+  const handleToggleRefund = (checked) => {
+    setIsRefund(checked);
+    const targetType = checked ? 'despesa' : 'receita';
+    const first = categories.find((c) => c.type === targetType);
+    if (first) setCategory(first.id);
+    setDescription('');
   };
 
   const handleCategoryChange = (newCat) => {
@@ -916,6 +1038,7 @@ export default function App() {
     const cleanDesc = description.trim() || category;
     const baseDesc = baseItemName(cleanDesc);
     const wasEditing = Boolean(editingId);
+    const refundFlag = type === 'receita' && isRefund;
 
     setCategories((prev) => prev.map((c) => {
       if (c.id !== category) return c;
@@ -928,6 +1051,7 @@ export default function App() {
       const updated = {
         ...(transactions.find((t) => t.id === editingId) || {}),
         id: editingId, date, type, category, description: cleanDesc, cents: totalCents,
+        ...(refundFlag ? { isRefund: true } : { isRefund: false }),
       };
       setTransactions((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
       setMonth(monthOf(date));
@@ -951,18 +1075,26 @@ export default function App() {
       description: numParcelas > 1 ? `${cleanDesc} (${idx + 1}/${numParcelas})` : cleanDesc,
       cents,
       ...(groupId ? { groupId } : {}),
+      ...(refundFlag ? { isRefund: true } : {}),
     }));
 
     setTransactions((prev) => [...newEntries.reverse(), ...prev]);
     setMonth(monthOf(date));
     setQuickOpen(false);
     resetForm();
-    showToast(numParcelas > 1 ? `Lançado em ${numParcelas}x!` : 'Lançamento registrado!');
+    showToast(
+      refundFlag
+        ? 'Estorno abatido no item!'
+        : numParcelas > 1
+          ? `Lançado em ${numParcelas}x!`
+          : 'Lançamento registrado!'
+    );
   };
 
   const handleEdit = (t) => {
     setEditingId(t.id);
     setType(t.type);
+    setIsRefund(Boolean(t.isRefund));
     setCategory(t.category);
     setDescription(t.description);
     setAmount(centsToInput(t.cents));
@@ -1057,20 +1189,88 @@ export default function App() {
     }
   };
 
-  // ----- Ações de Metas por Item -----
+  // ----- Ações de Metas Isoladas por Mês com Trava de Receita Real -----
   const commitItemGoal = (catId, itemLabel, raw) => {
-    const cents = raw.trim() === '' ? 0 : parseAmountToCents(raw);
-    if (isNaN(cents)) return;
+    const parsed = raw.trim() === '' ? 0 : parseAmountToCents(raw);
+    if (isNaN(parsed)) return;
     const k = itemGoalKey(catId, itemLabel);
-    setItemGoals((prev) => {
-      const next = { ...prev };
-      if (cents <= 0) {
-        delete next[k];
+    const currentItemCents = currentMonthGoals[k]?.cents || 0;
+    const maxAllowedForItem = currentItemCents + allocationStats.freeToAllocate;
+
+    let finalCents = Math.max(0, parsed);
+    if (finalCents > currentItemCents && finalCents > maxAllowedForItem) {
+      finalCents = maxAllowedForItem;
+      showToast(
+        maxAllowedForItem <= currentItemCents
+          ? 'Sem receita livre disponível neste mês para aumentar o orçamento.'
+          : `Limitado ao saldo livre de ${formatCurrency(maxAllowedForItem)} deste mês.`,
+        'error'
+      );
+    }
+
+    setMonthlyBudgets((prev) => {
+      const monthMap = { ...(prev[month] || {}) };
+      if (finalCents <= 0) {
+        delete monthMap[k];
       } else {
-        next[k] = { category: catId, label: itemLabel, cents };
+        monthMap[k] = { category: catId, label: itemLabel, cents: finalCents };
       }
+      return { ...prev, [month]: monthMap };
+    });
+  };
+
+  const handleAllocateRemainingToItem = (catId, itemLabel) => {
+    if (allocationStats.freeToAllocate <= 0) return;
+    const k = itemGoalKey(catId, itemLabel);
+    const currentCents = currentMonthGoals[k]?.cents || 0;
+    const targetCents = currentCents + allocationStats.freeToAllocate;
+    setMonthlyBudgets((prev) => ({
+      ...prev,
+      [month]: {
+        ...(prev[month] || {}),
+        [k]: { category: catId, label: itemLabel, cents: targetCents },
+      },
+    }));
+    showToast(`+${formatCurrency(allocationStats.freeToAllocate)} alocado em ${itemLabel}!`);
+  };
+
+  const upcomingMonthsList = useMemo(() => {
+    return Array.from({ length: 12 }, (_, idx) => {
+      const ym = shiftMonth(month, idx + 1);
+      return { ym, label: monthLabel(ym) };
+    });
+  }, [month]);
+
+  const handleConfirmReplicateBudget = () => {
+    if (!replicateTargets.length) return;
+    const sourceGoals = monthlyBudgets[month] || {};
+
+    setMonthlyBudgets((prev) => {
+      const next = { ...prev };
+      replicateTargets.forEach((targetYm) => {
+        if (replicateMode === 'overwrite') {
+          const cloned = {};
+          Object.entries(sourceGoals).forEach(([k, ig]) => {
+            cloned[k] = { ...ig };
+          });
+          next[targetYm] = cloned;
+        } else {
+          const existing = { ...(next[targetYm] || {}) };
+          Object.entries(sourceGoals).forEach(([k, ig]) => {
+            if (!existing[k] || !existing[k].cents) {
+              existing[k] = { ...ig };
+            }
+          });
+          next[targetYm] = existing;
+        }
+      });
       return next;
     });
+
+    const count = replicateTargets.length;
+    setReplicateModalOpen(false);
+    setReplicateTargets([]);
+    showToast(`Orçamento de ${monthLabel(month)} replicado para ${count} ${count === 1 ? 'mês' : 'meses'}!`);
   };
 
   const handleAddItemFromMetas = (catId) => {
@@ -1128,13 +1328,17 @@ export default function App() {
       if (editingCatId !== cleanLabel) {
         setFilterCategory((f) => (f === editingCatId ? cleanLabel : f));
         setTransactions((prev) => prev.map((t) => (t.category === editingCatId ? { ...t, category: cleanLabel } : t)));
-        setItemGoals((prev) => {
-          const next = {};
-          Object.values(prev).forEach((ig) => {
-            const newCat = ig.category === editingCatId ? cleanLabel : ig.category;
-            next[itemGoalKey(newCat, ig.label)] = { ...ig, category: newCat };
+        setMonthlyBudgets((prev) => {
+          const updated = {};
+          Object.entries(prev).forEach(([ym, goalsMap]) => {
+            const nextMap = {};
+            Object.values(goalsMap || {}).forEach((ig) => {
+              const newCat = ig.category === editingCatId ? cleanLabel : ig.category;
+              nextMap[itemGoalKey(newCat, ig.label)] = { ...ig, category: newCat };
+            });
+            updated[ym] = nextMap;
           });
-          return next;
+          return updated;
         });
       }
       showToast('Categoria atualizada!');
@@ -1158,18 +1362,22 @@ export default function App() {
     const fallback = sameType.find((c) => c.id !== cat.id && /^outr/.test(norm(c.id)))
       || sameType.find((c) => c.id !== cat.id);
     const moved = transactions.filter((t) => t.category === cat.id).length;
-    const snap = { categories, transactions, itemGoals };
+    const snap = { categories, transactions, monthlyBudgets };
 
     setCategories((prev) => prev.filter((c) => c.id !== cat.id));
     if (moved) {
       setTransactions((prev) => prev.map((t) => (t.category === cat.id ? { ...t, category: fallback.id } : t)));
     }
-    setItemGoals((prev) => {
-      const next = {};
-      Object.entries(prev).forEach(([k, ig]) => {
-        if (ig.category !== cat.id) next[k] = ig;
+    setMonthlyBudgets((prev) => {
+      const updated = {};
+      Object.entries(prev).forEach(([ym, goalsMap]) => {
+        const nextMap = {};
+        Object.entries(goalsMap || {}).forEach(([k, ig]) => {
+          if (ig.category !== cat.id) nextMap[k] = ig;
+        });
+        updated[ym] = nextMap;
       });
-      return next;
+      return updated;
     });
     setFilterCategory((f) => (f === cat.id ? 'todas' : f));
     showToast(
@@ -1180,7 +1388,7 @@ export default function App() {
       () => {
         setCategories(snap.categories);
         setTransactions(snap.transactions);
-        setItemGoals(snap.itemGoals);
+        setMonthlyBudgets(snap.monthlyBudgets);
       }
     );
   };
@@ -1202,10 +1410,15 @@ export default function App() {
       if (c.id !== catId) return c;
       return { ...c, items: (c.items || []).filter((it) => norm(it) !== norm(itemLabel)) };
     }));
-    setItemGoals((prev) => {
-      const next = { ...prev };
-      delete next[itemGoalKey(catId, itemLabel)];
-      return next;
+    const targetKey = itemGoalKey(catId, itemLabel);
+    setMonthlyBudgets((prev) => {
+      const updated = {};
+      Object.entries(prev).forEach(([ym, goalsMap]) => {
+        const nextMap = { ...(goalsMap || {}) };
+        delete nextMap[targetKey];
+        updated[ym] = nextMap;
+      });
+      return updated;
     });
   };
 
@@ -1221,12 +1434,14 @@ export default function App() {
 
   const buildBackupJSON = () => JSON.stringify({
     app: 'Financas',
-    version: 2,
+    version: 3,
     exportedAt: new Date().toISOString(),
     data: {
       transactions,
       categories,
-      itemGoals,
+      monthlyBudgets,
+      safetyBufferCents,
+      itemGoals: currentMonthGoals,
       noSpend,
     },
   }, null, 2);
@@ -1352,11 +1567,21 @@ export default function App() {
       return showToast('Arquivo JSON inválido ou incompatível.', 'error');
     }
     const clean = sanitizeBackup(raw, Object.keys(ICONS_MAP));
-    if (!clean.transactions.length && raw.transactions.length) {
+    // Preserva a flag isRefund se existir nos lançamentos importados
+    const refundIds = new Set(raw.transactions.filter((t) => t?.isRefund).map((t) => t.id));
+    const txWithRefund = clean.transactions.map((t) => (refundIds.has(t.id) ? { ...t, isRefund: true } : t));
+
+    if (!txWithRefund.length && raw.transactions.length) {
       return showToast('Nenhum lançamento válido encontrado no backup.', 'error');
     }
-    setImportPreview(clean.transactions);
-    setImportExtraData({ categories: clean.categories, itemGoals: clean.itemGoals, noSpend: clean.noSpend });
+    setImportPreview(txWithRefund);
+    setImportExtraData({
+      categories: clean.categories,
+      itemGoals: clean.itemGoals,
+      monthlyBudgets: raw.monthlyBudgets && typeof raw.monthlyBudgets === 'object' ? raw.monthlyBudgets : null,
+      safetyBufferCents: Number(raw.safetyBufferCents || 0),
+      noSpend: clean.noSpend,
+    });
     setImportErrors(new Array(clean.dropped).fill('inválido'));
     setImportMode('merge');
     setImportSource('json');
@@ -1436,11 +1661,12 @@ export default function App() {
   };
 
   const handleConfirmImport = () => {
-    const snapshot = { transactions, categories, itemGoals, noSpend };
+    const snapshot = { transactions, categories, monthlyBudgets, safetyBufferCents, noSpend };
     const undo = () => {
       setTransactions(snapshot.transactions);
       setCategories(snapshot.categories);
-      setItemGoals(snapshot.itemGoals);
+      setMonthlyBudgets(snapshot.monthlyBudgets);
+      setSafetyBufferCents(snapshot.safetyBufferCents);
       setNoSpend(snapshot.noSpend);
     };
     const sig = (t) => `${t.date}|${t.type}|${t.category}|${t.description}|${t.cents}`;
@@ -1455,7 +1681,12 @@ export default function App() {
         const nextCats = ensureCategories(importExtraData.categories || categories, importPreview, COLOR_PALETTE);
         setTransactions(importPreview);
         setCategories(nextCats);
-        setItemGoals(importExtraData.itemGoals || {});
+        if (importExtraData.monthlyBudgets) {
+          setMonthlyBudgets(importExtraData.monthlyBudgets);
+        } else {
+          setMonthlyBudgets({ [month]: importExtraData.itemGoals || {} });
+        }
+        setSafetyBufferCents(importExtraData.safetyBufferCents || 0);
         setNoSpend(importExtraData.noSpend || []);
         showToast(
           `Backup completo restaurado (${importPreview.length} lançamentos, ${nextCats.length} categorias)!`,
@@ -1479,7 +1710,20 @@ export default function App() {
           });
           return ensureCategories([...map.values()], fresh, COLOR_PALETTE);
         });
-        setItemGoals((prev) => ({ ...importExtraData.itemGoals, ...prev }));
+        if (importExtraData.monthlyBudgets) {
+          setMonthlyBudgets((prev) => {
+            const merged = { ...prev };
+            Object.entries(importExtraData.monthlyBudgets).forEach(([ym, goalsMap]) => {
+              merged[ym] = { ...(goalsMap || {}), ...(merged[ym] || {}) };
+            });
+            return merged;
+          });
+        } else if (importExtraData.itemGoals) {
+          setMonthlyBudgets((prev) => ({
+            ...prev,
+            [month]: { ...importExtraData.itemGoals, ...(prev[month] || {}) },
+          }));
+        }
         setNoSpend((prev) => [...new Set([...prev, ...(importExtraData.noSpend || [])])]);
         showToast(
           `Sincronizado: +${fresh.length} novos${skipped ? ` (${skipped} já existiam)` : ''}!`,
@@ -1658,7 +1902,7 @@ export default function App() {
         {/* ================================================================ */}
         {activeTab === 'inicio' && (
           <div className="space-y-4">
-            {/* Hero Card com Semáforo de Orçamento */}
+            {/* Hero Card com Semáforo de Orçamento Lastreado na Receita Real */}
             <section
               className="relative overflow-hidden rounded-3xl text-white p-5 transition-all duration-300"
               style={
@@ -1685,7 +1929,7 @@ export default function App() {
                     {budget.status === 'warning' && <AlertTriangle className="w-3.5 h-3.5 shrink-0" />}
                     <span>
                       {budget.base <= 0
-                        ? 'Orçamento do mês'
+                        ? (totalAllGoals > 0 ? 'Orçamento aguardando receita' : 'Orçamento do mês')
                         : budget.remaining >= 0
                           ? budget.status === 'warning'
                             ? `Atenção: ${Math.round(budget.usedPct)}% usado`
@@ -1699,12 +1943,14 @@ export default function App() {
                         {money(Math.abs(budget.remaining))}
                       </p>
                       <p className="text-xs text-white/85 mt-1">
-                        de {money(budget.base)} ({budget.fromGoals ? 'soma das metas' : 'receitas do mês'})
+                        de {money(budget.base)} ({budget.fromGoals ? 'orçamento coberto pela receita' : 'receita líquida do mês'})
                       </p>
                     </>
                   ) : (
                     <p className="text-sm text-white/90 mt-1.5">
-                      Defina metas na aba <strong>Metas</strong> ou registre uma receita para acompanhar seu limite.
+                      {totalAllGoals > 0
+                        ? `Você planejou ${money(totalAllGoals)}, mas ainda não há receita lançada neste mês.`
+                        : 'Registre uma receita e distribua nos itens na aba Metas para controlar seu teto.'}
                     </p>
                   )}
                 </div>
@@ -1775,7 +2021,7 @@ export default function App() {
                 <p className="text-sm sm:text-base font-extrabold text-rose-500 mt-0.5 truncate">
                   {money(summary.despesas)}
                 </p>
-                <p className="text-[10px] fs-text-muted mt-0.5">Saídas</p>
+                <p className="text-[10px] fs-text-muted mt-0.5">Gasto líquido</p>
               </div>
             </section>
 
@@ -1938,7 +2184,10 @@ export default function App() {
                                 </div>
                                 <div className="min-w-0 flex-1">
                                   <p className="text-sm font-bold fs-text-main truncate">{item.description}</p>
-                                  <p className="text-[11px] fs-text-muted truncate">{meta.label}</p>
+                                  <p className="text-[11px] fs-text-muted truncate">
+                                    {meta.label}
+                                    {item.isRefund ? ' · Estorno abatido' : ''}
+                                  </p>
                                 </div>
                               </button>
 
@@ -1946,7 +2195,9 @@ export default function App() {
                                 <button
                                   type="button"
                                   onClick={() => handleEdit(item)}
-                                  className={`text-sm font-extrabold cursor-pointer ${income ? 'text-emerald-500' : 'text-rose-500'}`}
+                                  className={`text-sm font-extrabold cursor-pointer ${
+                                    item.isRefund ? 'text-sky-500' : income ? 'text-emerald-500' : 'text-rose-500'
+                                  }`}
                                 >
                                   {income ? '+' : '-'} {money(item.cents)}
                                 </button>
@@ -2013,6 +2264,26 @@ export default function App() {
                 </p>
               </div>
             </section>
+
+            {/* Parcelas Futuras já Comprometidas */}
+            {futureInstallments.some((f) => f.totalCents > 0) && (
+              <section className="fs-card p-4 rounded-3xl space-y-2.5">
+                <h2 className="text-xs font-extrabold uppercase tracking-wider fs-text-muted flex items-center gap-1.5">
+                  <CreditCard className="w-4 h-4" style={{ color: accent.main }} />
+                  Parcelas Futuras já Comprometidas
+                </h2>
+                <div className="grid grid-cols-3 gap-2">
+                  {futureInstallments.map((f) => (
+                    <div key={f.ym} className="fs-elevated p-3 rounded-2xl">
+                      <p className="text-[11px] font-bold fs-text-muted truncate">{f.label}</p>
+                      <p className="text-xs sm:text-sm font-extrabold fs-text-main mt-0.5">
+                        {money(f.totalCents)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
 
             {/* Evolução 6 Meses */}
             <section className="fs-card p-5 rounded-3xl space-y-4">
@@ -2206,10 +2477,116 @@ export default function App() {
         )}
 
         {/* ================================================================ */}
-        {/* ABA 3: METAS (VISÃO POR ITENS vs. TOTAL POR CATEGORIA)           */}
+        {/* ABA 3: METAS / ORÇAMENTO ISOLADO POR MÊS COM LASTRO DE RECEITA   */}
         {/* ================================================================ */}
         {activeTab === 'metas' && (
           <div className="space-y-4">
+            {/* Barra Superior: Saldo Livre para Alocar + Replicar Mês + Reserva de Segurança */}
+            <section className="fs-card p-4 rounded-3xl space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-wider fs-text-muted">
+                    Livre para alocar em {monthLabel(month)}
+                  </p>
+                  <div className="flex items-baseline gap-2 mt-0.5">
+                    <span
+                      className="text-2xl font-extrabold"
+                      style={{
+                        color: allocationStats.uncoveredDeficit > 0
+                          ? '#f59e0b'
+                          : allocationStats.freeToAllocate > 0
+                            ? accentText
+                            : 'var(--text-main)',
+                      }}
+                    >
+                      {money(allocationStats.freeToAllocate)}
+                    </span>
+                    <span className="text-xs fs-text-muted">
+                      de {money(allocationStats.distributableIncome)} disponíveis
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReplicateTargets([]);
+                    setReplicateMode('only_empty');
+                    setReplicateModalOpen(true);
+                  }}
+                  style={{ background: accent.gradient, boxShadow: `0 4px 12px ${accent.shadow}` }}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-extrabold text-white rounded-xl cursor-pointer active:scale-95 transition-transform"
+                >
+                  <Copy className="w-3.5 h-3.5" /> Replicar mês
+                </button>
+              </div>
+
+              {/* Barra de Lastro (Orçado vs Receita Distribuível) */}
+              <div>
+                <div className="flex justify-between text-[11px] fs-text-sec mb-1">
+                  <span>Orçado nos itens: <strong>{money(totalAllGoals)}</strong></span>
+                  <span>
+                    {allocationStats.distributableIncome > 0
+                      ? `${Math.min(100, Math.round((totalAllGoals / allocationStats.distributableIncome) * 100))}% alocado`
+                      : 'Aguardando receita'}
+                  </span>
+                </div>
+                <div className="fs-elevated h-2 rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all"
+                    style={{
+                      width: `${
+                        allocationStats.distributableIncome > 0
+                          ? Math.min(100, (totalAllGoals / allocationStats.distributableIncome) * 100)
+                          : totalAllGoals > 0
+                            ? 100
+                            : 0
+                      }%`,
+                      backgroundColor: allocationStats.uncoveredDeficit > 0 ? '#f59e0b' : accent.main,
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Alerta quando orçamento replicado ainda está acima da receita do mês */}
+              {allocationStats.uncoveredDeficit > 0 && (
+                <div
+                  className="rounded-2xl px-3.5 py-2.5 border flex items-start gap-2 text-xs"
+                  style={{ backgroundColor: 'rgba(245, 158, 11, 0.12)', borderColor: 'rgba(245, 158, 11, 0.35)' }}
+                >
+                  <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                  <p className="fs-text-main">
+                    <strong>Orçamento descoberto em {money(allocationStats.uncoveredDeficit)}:</strong> as metas deste mês superam a receita real lançada. Novos aumentos estão bloqueados até entrar receita.
+                  </p>
+                </div>
+              )}
+
+              {/* Reserva de segurança mensal intocável */}
+              <div className="pt-2 flex items-center justify-between gap-2 text-xs" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+                <span className="flex items-center gap-1.5 fs-text-sec font-semibold">
+                  <ShieldCheck className="w-4 h-4 shrink-0" style={{ color: accent.main }} />
+                  Reserva de segurança intocável:
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] fs-text-muted">R$</span>
+                  <input
+                    key={`buffer-${safetyBufferCents}`}
+                    type="text"
+                    inputMode="decimal"
+                    defaultValue={safetyBufferCents ? centsToInput(safetyBufferCents) : ''}
+                    placeholder="0,00"
+                    onBlur={(e) => {
+                      const c = e.target.value.trim() === '' ? 0 : parseAmountToCents(e.target.value);
+                      if (!isNaN(c) && c >= 0) setSafetyBufferCents(c);
+                    }}
+                    onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+                    className="fs-input w-24 px-2.5 py-1 text-xs font-bold text-right rounded-xl"
+                  />
+                </div>
+              </div>
+            </section>
+
+            {/* Sub-abas: 1. Definir por Itens | 2. Total por Categoria */}
             <div className="fs-card grid grid-cols-2 gap-1.5 p-1.5 rounded-2xl">
               <button
                 type="button"
@@ -2233,21 +2610,14 @@ export default function App() {
               </button>
             </div>
 
-            {/* VISÃO 1: DEFINIR METAS NOS ITENS */}
+            {/* VISÃO 1: DEFINIR METAS NOS ITENS (ISOLADAS NO MÊS ATUAL) */}
             {metasView === 'itens' && (
               <div className="space-y-4">
-                <div
-                  className="rounded-2xl px-4 py-3 text-xs fs-text-sec"
-                  style={{ backgroundColor: accent.soft }}
-                >
-                  Defina o limite mensal de cada item (ex.: <strong>Lenço</strong> dentro de <strong>Higiene</strong>). Toque no <strong>+</strong> ao lado do item para lançar um gasto nele na hora.
-                </div>
-
                 {categories.filter((c) => c.type === 'despesa').map((cat) => {
                   const meta = getCategoryMeta(cat.id);
                   const Icon = meta.Icon;
                   const itemNames = new Set(cat.items || []);
-                  Object.values(itemGoals).forEach((ig) => { if (ig.category === cat.id) itemNames.add(ig.label); });
+                  Object.values(currentMonthGoals).forEach((ig) => { if (ig.category === cat.id) itemNames.add(ig.label); });
                   monthTx.forEach((t) => { if (t.category === cat.id && t.type === 'despesa') itemNames.add(baseItemName(t.description)); });
                   const itemsList = [...itemNames];
                   const catSumGoal = categoryGoalTotals[cat.id] || 0;
@@ -2265,7 +2635,7 @@ export default function App() {
                           <div className="min-w-0">
                             <h3 className="text-sm font-extrabold fs-text-main truncate">{cat.label}</h3>
                             <p className="text-[11px] fs-text-muted">
-                              Total somado: <strong style={{ color: accentText }}>{money(catSumGoal)}</strong>
+                              Total somado ({shortMonthLabel(month)}): <strong style={{ color: accentText }}>{money(catSumGoal)}</strong>
                             </p>
                           </div>
                         </div>
@@ -2305,8 +2675,9 @@ export default function App() {
                         <div className="fs-divider">
                           {itemsList.map((itemLabel) => {
                             const k = itemGoalKey(cat.id, itemLabel);
-                            const limit = itemGoals[k]?.cents || 0;
+                            const limit = currentMonthGoals[k]?.cents || 0;
                             const spent = spentByCatItem[k] || 0;
+                            const available = Math.max(0, limit - spent);
                             const pct = limit > 0 ? (spent / limit) * 100 : 0;
                             const barColor = pct >= 100 ? '#f43f5e' : pct >= 85 ? '#f59e0b' : accent.main;
 
@@ -2327,13 +2698,32 @@ export default function App() {
                                       <p className="text-xs font-bold fs-text-main truncate">{itemLabel}</p>
                                       <p className="text-[11px] fs-text-muted">
                                         Gasto: <strong className="fs-text-sec">{money(spent)}</strong>
+                                        {limit > 0 && (
+                                          <>
+                                            {' · '}
+                                            <span className={spent > limit ? 'text-rose-500 font-bold' : 'text-emerald-500 font-bold'}>
+                                              {spent > limit ? `Passou ${money(spent - limit)}` : `Livre ${money(available)}`}
+                                            </span>
+                                          </>
+                                        )}
                                       </p>
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-1.5 shrink-0">
-                                    <span className="text-[11px] fs-text-muted">Meta R$</span>
+                                    {allocationStats.freeToAllocate > 0 && (
+                                      <button
+                                        type="button"
+                                        title={`Alocar ${formatCurrency(allocationStats.freeToAllocate)} restantes aqui`}
+                                        onClick={() => handleAllocateRemainingToItem(cat.id, itemLabel)}
+                                        style={{ backgroundColor: accent.soft, color: accentText }}
+                                        className="px-2 py-1 text-[10px] font-extrabold rounded-lg cursor-pointer"
+                                      >
+                                        +Resto
+                                      </button>
+                                    )}
+                                    <span className="text-[11px] fs-text-muted">R$</span>
                                     <input
-                                      key={`${k}-${limit}`}
+                                      key={`${month}-${k}-${limit}`}
                                       type="text"
                                       inputMode="decimal"
                                       defaultValue={limit ? centsToInput(limit) : ''}
@@ -2368,7 +2758,7 @@ export default function App() {
               <div className="space-y-4">
                 <div className="fs-card p-4 rounded-3xl flex items-center justify-between">
                   <div>
-                    <p className="text-xs font-semibold fs-text-muted">Orçamento Total Planejado</p>
+                    <p className="text-xs font-semibold fs-text-muted">Orçamento Planejado ({shortMonthLabel(month)})</p>
                     <p className="text-2xl font-extrabold mt-0.5" style={{ color: accentText }}>
                       {money(totalAllGoals)}
                     </p>
@@ -2386,7 +2776,7 @@ export default function App() {
                   const catSpent = spentByCat[cat.id] || 0;
                   const pct = catGoal > 0 ? (catSpent / catGoal) * 100 : 0;
                   const barColor = pct >= 100 ? '#f43f5e' : pct >= 85 ? '#f59e0b' : accent.main;
-                  const catItemEntries = Object.values(itemGoals).filter((ig) => ig.category === cat.id && ig.cents > 0);
+                  const catItemEntries = Object.values(currentMonthGoals).filter((ig) => ig.category === cat.id && ig.cents > 0);
 
                   return (
                     <section key={cat.id} className="fs-card p-4 rounded-3xl space-y-2.5">
@@ -2635,6 +3025,136 @@ export default function App() {
       </nav>
 
       {/* ================================================================== */}
+      {/* MODAL: REPLICAR ORÇAMENTO PARA OUTROS MESES                        */}
+      {/* ================================================================== */}
+      {replicateModalOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/65 backdrop-blur-xs flex items-end sm:items-center justify-center"
+          role="dialog"
+          aria-modal="true"
+          onClick={(e) => e.target === e.currentTarget && setReplicateModalOpen(false)}
+        >
+          <div className="fs-card fs-safe-bottom w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl p-5 space-y-4 max-h-[90dvh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-extrabold fs-text-main flex items-center gap-2">
+                <Calendar className="w-4 h-4" style={{ color: accent.main }} />
+                Replicar {monthLabel(month)}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setReplicateModalOpen(false)}
+                aria-label="Fechar"
+                className="p-1.5 fs-text-muted rounded-xl cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                ['only_empty', 'Apenas itens vazios', 'Preserva ajustes já feitos nos meses futuros.'],
+                ['overwrite', 'Substituir tudo', 'Copia idêntico ao orçamento deste mês.'],
+              ].map(([modeKey, title, subtitle]) => {
+                const active = replicateMode === modeKey;
+                return (
+                  <button
+                    key={modeKey}
+                    type="button"
+                    onClick={() => setReplicateMode(modeKey)}
+                    style={
+                      active
+                        ? { borderColor: accent.main, backgroundColor: accent.soft }
+                        : { borderColor: 'var(--border-subtle)' }
+                    }
+                    className="p-3 text-left rounded-2xl border cursor-pointer"
+                  >
+                    <p className="text-xs font-extrabold fs-text-main">{title}</p>
+                    <p className="text-[11px] fs-text-muted mt-0.5">{subtitle}</p>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold fs-text-muted">Escolha os meses de destino</span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setReplicateTargets(
+                      replicateTargets.length === upcomingMonthsList.length
+                        ? []
+                        : upcomingMonthsList.map((m) => m.ym)
+                    )
+                  }
+                  style={{ color: accentText }}
+                  className="text-xs font-extrabold cursor-pointer"
+                >
+                  {replicateTargets.length === upcomingMonthsList.length ? 'Desmarcar todos' : 'Selecionar 12 meses'}
+                </button>
+              </div>
+
+              <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1">
+                {upcomingMonthsList.map(({ ym, label }) => {
+                  const checked = replicateTargets.includes(ym);
+                  const hasBudgets = Object.keys(monthlyBudgets[ym] || {}).length > 0;
+                  return (
+                    <label
+                      key={ym}
+                      style={
+                        checked
+                          ? { borderColor: accent.main, backgroundColor: accent.soft }
+                          : { borderColor: 'var(--border-subtle)' }
+                      }
+                      className="flex items-center justify-between px-3.5 py-2.5 rounded-2xl border cursor-pointer"
+                    >
+                      <span className="flex items-center gap-2.5 text-xs font-bold fs-text-main">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() =>
+                            setReplicateTargets((prev) =>
+                              prev.includes(ym) ? prev.filter((x) => x !== ym) : [...prev, ym]
+                            )
+                          }
+                          className="rounded"
+                        />
+                        {label}
+                      </span>
+                      {hasBudgets && (
+                        <span className="fs-elevated fs-text-muted text-[10px] font-bold px-2 py-0.5 rounded-full">
+                          Já possui metas
+                        </span>
+                      )}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setReplicateModalOpen(false)}
+                className="fs-elevated fs-text-sec px-4 py-2.5 text-xs font-bold rounded-xl cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={replicateTargets.length === 0}
+                onClick={handleConfirmReplicateBudget}
+                style={{ background: accent.gradient }}
+                className="px-4 py-2.5 text-xs font-extrabold text-white rounded-xl cursor-pointer disabled:opacity-40"
+              >
+                Replicar ({replicateTargets.length})
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================================================================== */}
       {/* MODAL: NOVO / EDITAR LANÇAMENTO                                    */}
       {/* ================================================================== */}
       {quickOpen && (
@@ -2677,6 +3197,22 @@ export default function App() {
                 );
               })}
             </div>
+
+            {type === 'receita' && (
+              <label
+                className="fs-elevated flex items-center gap-2.5 px-3.5 py-2.5 rounded-2xl text-xs cursor-pointer"
+              >
+                <input
+                  type="checkbox"
+                  checked={isRefund}
+                  onChange={(e) => handleToggleRefund(e.target.checked)}
+                  className="rounded"
+                />
+                <span className="fs-text-sec">
+                  É <strong>estorno / reembolso</strong> (abate o gasto do item sem inflar a receita do mês)
+                </span>
+              </label>
+            )}
 
             <div className="space-y-2">
               <div className="flex items-baseline gap-2 pb-1.5" style={{ borderBottom: '2px solid var(--border-subtle)' }}>
@@ -2835,7 +3371,7 @@ export default function App() {
                 type === 'despesa' ? 'bg-rose-600 hover:bg-rose-700' : ''
               }`}
             >
-              {editingId ? 'Salvar alterações' : `Registrar ${type}`}
+              {editingId ? 'Salvar alterações' : isRefund ? 'Registrar estorno' : `Registrar ${type}`}
             </button>
 
             {editingId && (
@@ -3083,7 +3619,7 @@ export default function App() {
               <div>
                 <p className="text-sm font-extrabold fs-text-main">Backup Completo (.json)</p>
                 <p className="text-xs fs-text-muted mt-0.5">
-                  Gera uma cópia completa de lançamentos, categorias e metas.
+                  Gera uma cópia completa de lançamentos, categorias e orçamentos mensais.
                 </p>
               </div>
             </button>
@@ -3209,7 +3745,11 @@ export default function App() {
               {importSource === 'json' && importExtraData && (
                 <p className="fs-text-muted">
                   Inclui <strong>{importExtraData.categories?.length || 0} categorias</strong> e{' '}
-                  <strong>{Object.keys(importExtraData.itemGoals || {}).length} metas por item</strong>.
+                  <strong>
+                    {importExtraData.monthlyBudgets
+                      ? `${Object.keys(importExtraData.monthlyBudgets).length} meses de orçamento`
+                      : `${Object.keys(importExtraData.itemGoals || {}).length} metas por item`}
+                  </strong>.
                 </p>
               )}
             </div>

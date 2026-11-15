@@ -14,7 +14,7 @@ import {
   Scissors, Sparkles, Droplets, Shirt, PiggyBank, Layers, BarChart3,
   LayoutGrid, ShoppingBag, Coffee, Gift, Baby, Smartphone, Zap, Check,
   ArrowUpRight, ArrowDownRight, Copy, Database, FileSpreadsheet, CreditCard,
-  Palette, Eye, EyeOff, CalendarPlus,
+  Palette, Eye, EyeOff, CalendarPlus, Share2, FolderCheck, RotateCcw,
 } from 'lucide-react';
 
 // ============================================================================
@@ -27,12 +27,15 @@ const KEYS = {
   ITEM_GOALS: 'financas_simples_item_goals_v1',
   BACKUP: 'financas_simples_last_backup_v2',
   BACKUP_TS: 'financas_simples_last_backup_ts_v1',
+  AUTO_BACKUP: 'financas_auto_backup_info_v1',
   THEME: 'financas_simples_theme_v1',
   ACCENT: 'financas_accent_v1',
   NOSPEND: 'financas_simples_nospend_v1',
   REMINDER: 'financas_reminder_time_v1',
   PRIVACY: 'financas_privacy_mode_v1',
 };
+
+const AUTO_BACKUP_PATH = 'Financas/backup_automatico.json';
 
 const ACCENT_THEMES = {
   emerald: {
@@ -194,7 +197,7 @@ const exportFileAndroidSafe = async ({ filename, content, mimeType, title }) => 
       await Share.share({
         title: title || filename,
         url: saved.uri,
-        dialogTitle: title || 'Salvar arquivo',
+        dialogTitle: title || 'Salvar ou enviar arquivo',
       });
       return 'shared';
     } catch (err) {
@@ -399,6 +402,7 @@ export default function App() {
   const [itemGoals, setItemGoals] = useState(() => store.get(KEYS.ITEM_GOALS, {}));
   const [lastBackup, setLastBackup] = useState(() => store.get(KEYS.BACKUP, null));
   const [lastBackupTs, setLastBackupTs] = useState(() => store.get(KEYS.BACKUP_TS, null));
+  const [autoBackupInfo, setAutoBackupInfo] = useState(() => store.get(KEYS.AUTO_BACKUP, null));
   const [month, setMonth] = useState(() => monthOf(todayISO()));
   const [dark, setDark] = useState(() => {
     const saved = store.get(KEYS.THEME);
@@ -501,6 +505,66 @@ export default function App() {
     navigator.storage?.persist?.()?.catch?.(() => {});
     return () => { storeEvents.onError = null; };
   }, []);
+
+  // Backup automático silencioso na pasta Documentos (nativo Android/iOS) após alterações
+  const isFirstAutoBackupMount = useRef(true);
+  useEffect(() => {
+    if (isFirstAutoBackupMount.current) {
+      isFirstAutoBackupMount.current = false;
+      return;
+    }
+    if (!Capacitor.isNativePlatform()) return;
+
+    const timer = setTimeout(async () => {
+      const jsonText = JSON.stringify({
+        app: 'Financas',
+        version: 2,
+        exportedAt: new Date().toISOString(),
+        data: { transactions, categories, itemGoals, noSpend },
+      }, null, 2);
+
+      let savedLocation = null;
+      try {
+        await Filesystem.writeFile({
+          path: AUTO_BACKUP_PATH,
+          data: jsonText,
+          directory: Directory.Documents,
+          encoding: Encoding.UTF8,
+          recursive: true,
+        });
+        savedLocation = 'Documentos/Financas';
+      } catch {
+        try {
+          await Filesystem.writeFile({
+            path: AUTO_BACKUP_PATH,
+            data: jsonText,
+            directory: Directory.Data,
+            encoding: Encoding.UTF8,
+            recursive: true,
+          });
+          savedLocation = 'Armazenamento interno do app';
+        } catch {
+          savedLocation = null;
+        }
+      }
+
+      if (savedLocation) {
+        const ts = Date.now();
+        const label = new Date(ts).toLocaleString('pt-BR', {
+          day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+        });
+        const info = { time: label, location: savedLocation, ts };
+        setAutoBackupInfo(info);
+        setLastBackup(label);
+        setLastBackupTs(ts);
+        store.set(KEYS.AUTO_BACKUP, info);
+        store.set(KEYS.BACKUP, label);
+        store.set(KEYS.BACKUP_TS, ts);
+      }
+    }, 3000);
+
+    return () => clearTimeout(timer);
+  }, [transactions, categories, itemGoals, noSpend]);
 
   const [, setDayTick] = useState(0);
   useEffect(() => {
@@ -1145,7 +1209,7 @@ export default function App() {
     });
   };
 
-  // ----- Exportar Backup Completo (JSON) & Planilha (CSV) -----
+  // ----- Exportar / Compartilhar Backup Completo (JSON) & Planilha (CSV) -----
   const stampBackup = () => {
     const ts = Date.now();
     const now = new Date(ts).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -1155,19 +1219,41 @@ export default function App() {
     store.set(KEYS.BACKUP_TS, ts);
   };
 
+  const buildBackupJSON = () => JSON.stringify({
+    app: 'Financas',
+    version: 2,
+    exportedAt: new Date().toISOString(),
+    data: {
+      transactions,
+      categories,
+      itemGoals,
+      noSpend,
+    },
+  }, null, 2);
+
+  const handleShareFamilyBackup = async () => {
+    const jsonText = buildBackupJSON();
+    setBackupMenuOpen(false);
+
+    const res = await exportFileAndroidSafe({
+      filename: `financas_familia_${todayISO()}.json`,
+      content: jsonText,
+      mimeType: 'application/json',
+      title: 'Sincronizar Finanças (WhatsApp / Drive)',
+    });
+
+    if (res === 'cancelled') return;
+    if (res === 'failed') {
+      setBackupFallbackExt('json');
+      setBackupFallbackText(jsonText);
+    } else {
+      stampBackup();
+      showToast('Escolha o WhatsApp ou Google Drive para enviar!');
+    }
+  };
+
   const handleExportFullJSON = async () => {
-    const payload = {
-      app: 'Financas',
-      version: 2,
-      exportedAt: new Date().toISOString(),
-      data: {
-        transactions,
-        categories,
-        itemGoals,
-        noSpend,
-      },
-    };
-    const jsonText = JSON.stringify(payload, null, 2);
+    const jsonText = buildBackupJSON();
     setBackupMenuOpen(false);
 
     const res = await exportFileAndroidSafe({
@@ -1184,6 +1270,32 @@ export default function App() {
     } else {
       stampBackup();
       showToast('Backup completo (.json) pronto para salvar!');
+    }
+  };
+
+  const handleRestoreAutoBackup = async () => {
+    setBackupMenuOpen(false);
+    try {
+      let file = null;
+      try {
+        file = await Filesystem.readFile({
+          path: AUTO_BACKUP_PATH,
+          directory: Directory.Documents,
+          encoding: Encoding.UTF8,
+        });
+      } catch {
+        file = await Filesystem.readFile({
+          path: AUTO_BACKUP_PATH,
+          directory: Directory.Data,
+          encoding: Encoding.UTF8,
+        });
+      }
+      if (!file?.data) {
+        return showToast('Nenhum backup automático encontrado ainda.', 'error');
+      }
+      parseJSONBackupText(String(file.data).replace(/^\uFEFF/, '').trim());
+    } catch {
+      showToast('Nenhum backup automático encontrado na pasta Documentos.', 'error');
     }
   };
 
@@ -1246,7 +1358,7 @@ export default function App() {
     setImportPreview(clean.transactions);
     setImportExtraData({ categories: clean.categories, itemGoals: clean.itemGoals, noSpend: clean.noSpend });
     setImportErrors(new Array(clean.dropped).fill('inválido'));
-    setImportMode('replace');
+    setImportMode('merge');
     setImportSource('json');
     setImportOpen(true);
   };
@@ -1352,6 +1464,7 @@ export default function App() {
         );
       } else {
         const fresh = onlyNew(importPreview);
+        const skipped = importPreview.length - fresh.length;
         setTransactions([...fresh, ...transactions]);
         setCategories((prev) => {
           const map = new Map(prev.map((c) => [norm(c.id), { ...c }]));
@@ -1368,7 +1481,11 @@ export default function App() {
         });
         setItemGoals((prev) => ({ ...importExtraData.itemGoals, ...prev }));
         setNoSpend((prev) => [...new Set([...prev, ...(importExtraData.noSpend || [])])]);
-        showToast(`Backup mesclado (+${fresh.length} lançamentos e categorias)!`, 'success', undo);
+        showToast(
+          `Sincronizado: +${fresh.length} novos${skipped ? ` (${skipped} já existiam)` : ''}!`,
+          'success',
+          undo
+        );
       }
     } else {
       setCategories((prev) => ensureCategories(prev, importPreview, COLOR_PALETTE));
@@ -1417,7 +1534,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Top App Bar (Título sempre visível sem cortar + Privacidade + Aviso Backup) */}
+      {/* Top App Bar */}
       <header className="fs-glass-top sticky top-0 z-30">
         <div className="max-w-3xl mx-auto px-3 sm:px-4 pb-3 flex items-center justify-between gap-1.5">
           <div className="flex items-center gap-2 min-w-0">
@@ -1432,7 +1549,11 @@ export default function App() {
                 Finanças
               </h1>
               <p className="text-[10px] sm:text-[11px] fs-text-muted mt-0.5 truncate max-w-[115px] sm:max-w-none">
-                {lastBackup ? `Backup: ${lastBackup.replace(/\/\d{4},?/, '')}` : 'Controle da Família'}
+                {autoBackupInfo
+                  ? `Auto: ${autoBackupInfo.time}`
+                  : lastBackup
+                    ? `Backup: ${lastBackup.replace(/\/\d{4},?/, '')}`
+                    : 'Controle da Família'}
               </p>
             </div>
           </div>
@@ -1455,7 +1576,7 @@ export default function App() {
             </button>
             <button
               onClick={() => fileInputRef.current?.click()}
-              title="Importar backup (.json), planilha (.csv) ou extrato (.ofx)"
+              title="Importar ou mesclar arquivo recebido (.json, .csv, .ofx)"
               className="fs-elevated fs-text-sec inline-flex items-center gap-1.5 p-1.5 sm:px-2.5 sm:py-2 text-xs font-semibold rounded-xl cursor-pointer active:scale-95 transition-transform"
             >
               <Upload className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
@@ -1463,11 +1584,11 @@ export default function App() {
             </button>
             <button
               onClick={() => setBackupMenuOpen(true)}
-              title={backupOverdue ? 'Recomendado fazer backup agora' : 'Opções de backup e exportação'}
+              title={backupOverdue ? 'Backup e compartilhamento com família' : 'Backup automático e compartilhamento'}
               style={{ background: accent.gradient, boxShadow: `0 3px 10px ${accent.shadow}` }}
               className="relative inline-flex items-center gap-1.5 p-1.5 sm:px-2.5 sm:py-2 text-xs font-bold text-white rounded-xl cursor-pointer active:scale-95 transition-transform"
             >
-              <Download className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+              <Share2 className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
               <span className="hidden sm:inline">Backup</span>
               {backupOverdue && (
                 <span
@@ -2889,7 +3010,7 @@ export default function App() {
       )}
 
       {/* ================================================================== */}
-      {/* MODAL: OPÇÕES DE BACKUP                                            */}
+      {/* MODAL: BACKUP AUTOMÁTICO E COMPARTILHAMENTO COM FAMÍLIA            */}
       {/* ================================================================== */}
       {backupMenuOpen && (
         <div
@@ -2898,27 +3019,71 @@ export default function App() {
           aria-modal="true"
           onClick={(e) => e.target === e.currentTarget && setBackupMenuOpen(false)}
         >
-          <div className="fs-card fs-safe-bottom w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl p-5 space-y-3.5">
+          <div className="fs-card fs-safe-bottom w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl p-5 space-y-3.5 max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-extrabold fs-text-main">Exportar dados</h3>
+              <h3 className="text-base font-extrabold fs-text-main">Backup & Sincronizar Família</h3>
               <button onClick={() => setBackupMenuOpen(false)} aria-label="Fechar" className="p-1.5 fs-text-muted rounded-xl cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
+            {Capacitor.isNativePlatform() && (
+              <div
+                className="p-3.5 rounded-2xl border flex items-start justify-between gap-2.5"
+                style={{ backgroundColor: accent.soft, borderColor: 'var(--border-subtle)' }}
+              >
+                <div className="flex items-start gap-2.5 min-w-0">
+                  <FolderCheck className="w-5 h-5 shrink-0 mt-0.5" style={{ color: accentText }} />
+                  <div className="min-w-0">
+                    <p className="text-xs font-extrabold fs-text-main">Backup automático ativo</p>
+                    <p className="text-[11px] fs-text-sec mt-0.5">
+                      {autoBackupInfo
+                        ? `Última cópia: ${autoBackupInfo.time} (${autoBackupInfo.location})`
+                        : 'Salva automaticamente em Documentos/Financas após cada lançamento.'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleRestoreAutoBackup}
+                  title="Recuperar backup automático salvo na pasta Documentos"
+                  className="fs-card px-2.5 py-1.5 text-[11px] font-extrabold rounded-xl inline-flex items-center gap-1 shrink-0 cursor-pointer"
+                  style={{ color: accentText }}
+                >
+                  <RotateCcw className="w-3.5 h-3.5" /> Restaurar
+                </button>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={handleShareFamilyBackup}
+              style={{ background: accent.gradient, boxShadow: `0 6px 18px ${accent.shadow}` }}
+              className="w-full p-4 text-left rounded-2xl text-white flex items-start gap-3.5 cursor-pointer active:scale-[0.99] transition-transform"
+            >
+              <div className="p-2.5 rounded-xl bg-white/20 text-white shrink-0">
+                <Share2 className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-sm font-extrabold">Enviar para Família (WhatsApp / Drive)</p>
+                <p className="text-xs text-white/90 mt-0.5">
+                  Compartilhe com 1 toque pelo WhatsApp ou salve no Google Drive. No outro celular, basta importar usando <strong>Mesclar</strong>.
+                </p>
+              </div>
+            </button>
+
             <button
               type="button"
               onClick={handleExportFullJSON}
-              style={{ backgroundColor: accent.soft, borderColor: accent.main }}
-              className="w-full p-4 text-left rounded-2xl border flex items-start gap-3.5 cursor-pointer"
+              className="fs-elevated w-full p-3.5 text-left rounded-2xl flex items-start gap-3.5 cursor-pointer"
             >
-              <div className="p-2.5 rounded-xl text-white shrink-0" style={{ backgroundColor: accent.main }}>
+              <div className="fs-card p-2.5 rounded-xl shrink-0" style={{ color: accentText }}>
                 <Database className="w-5 h-5" />
               </div>
               <div>
                 <p className="text-sm font-extrabold fs-text-main">Backup Completo (.json)</p>
-                <p className="text-xs fs-text-sec mt-0.5">
-                  Salva <strong>tudo</strong>: lançamentos, categorias criadas (cores, ícones e itens) e metas.
+                <p className="text-xs fs-text-muted mt-0.5">
+                  Gera uma cópia completa de lançamentos, categorias e metas.
                 </p>
               </div>
             </button>
@@ -2926,7 +3091,7 @@ export default function App() {
             <button
               type="button"
               onClick={handleExportCSV}
-              className="fs-elevated w-full p-4 text-left rounded-2xl flex items-start gap-3.5 cursor-pointer"
+              className="fs-elevated w-full p-3.5 text-left rounded-2xl flex items-start gap-3.5 cursor-pointer"
             >
               <div className="fs-card p-2.5 rounded-xl fs-text-sec shrink-0">
                 <FileSpreadsheet className="w-5 h-5" />
@@ -2934,7 +3099,7 @@ export default function App() {
               <div>
                 <p className="text-sm font-extrabold fs-text-main">Planilha Excel (.csv)</p>
                 <p className="text-xs fs-text-muted mt-0.5">
-                  Exporta apenas a tabela de lançamentos para abrir no Excel ou Google Planilhas.
+                  Exporta a tabela de lançamentos para Excel ou Google Planilhas.
                 </p>
               </div>
             </button>
@@ -3028,7 +3193,7 @@ export default function App() {
             <div className="flex items-center justify-between">
               <h3 className="text-base font-extrabold fs-text-main">
                 {importSource === 'json'
-                  ? 'Restaurar Backup Completo (.json)'
+                  ? 'Sincronizar / Restaurar Backup (.json)'
                   : importSource === 'ofx'
                     ? 'Importar extrato OFX'
                     : 'Importar planilha CSV'}
@@ -3051,8 +3216,8 @@ export default function App() {
 
             <div className="grid grid-cols-2 gap-2">
               {[
-                ['replace', 'Substituir tudo', 'Restaura exatamente o estado deste backup.'],
-                ['merge', 'Mesclar', 'Mantém os atuais e soma os novos sem duplicar.'],
+                ['merge', 'Mesclar (Família)', 'Soma os lançamentos novos aos seus sem duplicar.'],
+                ['replace', 'Substituir tudo', 'Apaga os atuais e restaura exatamente este arquivo.'],
               ].filter(([m]) => importSource !== 'ofx' || m === 'merge').map(([m, tit, sub]) => {
                 const active = importMode === m;
                 return (
@@ -3079,7 +3244,7 @@ export default function App() {
                 style={{ backgroundColor: accent.main }}
                 className="px-4 py-2 text-xs font-bold text-white rounded-xl cursor-pointer"
               >
-                Importar agora
+                {importMode === 'merge' ? 'Mesclar agora' : 'Restaurar tudo'}
               </button>
             </div>
           </div>

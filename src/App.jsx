@@ -9,12 +9,12 @@ import {
 import {
   Wallet, TrendingUp, TrendingDown, Trash2, Download, Upload,
   Filter, PieChart, Utensils, Car, Home, Gamepad2, HeartPulse, GraduationCap,
-  Briefcase, DollarSign, Tag, CheckCircle2, AlertCircle, X,
+  Briefcase, DollarSign, Tag, CheckCircle2, AlertCircle, AlertTriangle, X,
   ChevronLeft, ChevronRight, Pencil, Search, Target, Sun, Moon, Plus, Bell,
   Scissors, Sparkles, Droplets, Shirt, PiggyBank, Layers, BarChart3,
   LayoutGrid, ShoppingBag, Coffee, Gift, Baby, Smartphone, Zap, Check,
   ArrowUpRight, ArrowDownRight, Copy, Database, FileSpreadsheet, CreditCard,
-  Palette,
+  Palette, Eye, EyeOff, CalendarPlus,
 } from 'lucide-react';
 
 // ============================================================================
@@ -26,10 +26,12 @@ const KEYS = {
   CATS: 'financas_categories_v1',
   ITEM_GOALS: 'financas_simples_item_goals_v1',
   BACKUP: 'financas_simples_last_backup_v2',
+  BACKUP_TS: 'financas_simples_last_backup_ts_v1',
   THEME: 'financas_simples_theme_v1',
   ACCENT: 'financas_accent_v1',
   NOSPEND: 'financas_simples_nospend_v1',
   REMINDER: 'financas_reminder_time_v1',
+  PRIVACY: 'financas_privacy_mode_v1',
 };
 
 const ACCENT_THEMES = {
@@ -139,9 +141,18 @@ const formatCompact = (cents) => {
   return `R$ ${val.toFixed(0)}`;
 };
 
-const formatDateBR = (iso) => {
-  const [y, m, d] = (iso || '').split('-');
-  return y && m && d ? `${d}/${m}/${y}` : iso || '';
+const groupDateLabel = (iso) => {
+  if (iso === todayISO()) return 'Hoje';
+  if (iso === yesterdayISO()) return 'Ontem';
+  const [y, m, d] = (iso || '').split('-').map(Number);
+  if (!y || !m || !d) return iso || '';
+  const currentYear = new Date().getFullYear();
+  const dt = new Date(y, m - 1, d);
+  return dt.toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: 'short',
+    ...(y !== currentYear ? { year: 'numeric' } : {}),
+  }).replace('.', '');
 };
 
 const centsToInput = (c) => (c / 100).toFixed(2).replace('.', ',');
@@ -172,7 +183,6 @@ const decodeText = (buf) => {
 };
 
 const exportFileAndroidSafe = async ({ filename, content, mimeType, title }) => {
-  // Android (app nativo): grava no cache e abre a folha de compartilhamento.
   if (Capacitor.isNativePlatform()) {
     try {
       const saved = await Filesystem.writeFile({
@@ -194,7 +204,6 @@ const exportFileAndroidSafe = async ({ filename, content, mimeType, title }) => 
     }
   }
 
-  // Web / iPhone (PWA): compartilha o ARQUIVO de verdade quando o navegador permite.
   try {
     const file = new File([content], filename, { type: mimeType });
     if (navigator.canShare?.({ files: [file] })) {
@@ -205,7 +214,6 @@ const exportFileAndroidSafe = async ({ filename, content, mimeType, title }) => 
     if (err?.name === 'AbortError') return 'cancelled';
   }
 
-  // Alternativa: download direto.
   try {
     const url = URL.createObjectURL(new Blob([content], { type: `${mimeType};charset=utf-8;` }));
     const link = document.createElement('a');
@@ -242,7 +250,6 @@ const guessCategoryFromList = (description, type, categories) => {
   return pool[pool.length - 1]?.id || 'Outros Gastos';
 };
 
-// Permite ao App avisar o usuário quando o armazenamento falha (ex.: espaço cheio).
 const storeEvents = { onError: null };
 
 const store = {
@@ -391,6 +398,7 @@ export default function App() {
   });
   const [itemGoals, setItemGoals] = useState(() => store.get(KEYS.ITEM_GOALS, {}));
   const [lastBackup, setLastBackup] = useState(() => store.get(KEYS.BACKUP, null));
+  const [lastBackupTs, setLastBackupTs] = useState(() => store.get(KEYS.BACKUP_TS, null));
   const [month, setMonth] = useState(() => monthOf(todayISO()));
   const [dark, setDark] = useState(() => {
     const saved = store.get(KEYS.THEME);
@@ -400,9 +408,13 @@ export default function App() {
     const saved = store.get(KEYS.ACCENT);
     return saved && ACCENT_THEMES[saved] ? saved : 'emerald';
   });
+  const [hideValues, setHideValues] = useState(() => Boolean(store.get(KEYS.PRIVACY, false)));
 
   const accent = ACCENT_THEMES[accentKey] || ACCENT_THEMES.emerald;
   const accentText = dark ? accent.text : accent.textLight;
+
+  const money = (cents) => (hideValues ? 'R$ •••••' : formatCurrency(cents));
+  const compactMoney = (cents) => (hideValues ? '••••' : formatCompact(cents));
 
   const [noSpend, setNoSpend] = useState(() => store.get(KEYS.NOSPEND, []));
   const [reminderTime, setReminderTime] = useState(() => store.get(KEYS.REMINDER, '20:00'));
@@ -476,6 +488,7 @@ export default function App() {
   useEffect(() => { store.set(KEYS.ITEM_GOALS, itemGoals); }, [itemGoals]);
   useEffect(() => { store.set(KEYS.NOSPEND, noSpend); }, [noSpend]);
   useEffect(() => { store.set(KEYS.ACCENT, accentKey); }, [accentKey]);
+  useEffect(() => { store.set(KEYS.PRIVACY, hideValues); }, [hideValues]);
   useEffect(() => {
     store.set(KEYS.THEME, dark ? 'dark' : 'light');
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#090d16' : '#f4f6fa');
@@ -483,14 +496,12 @@ export default function App() {
   useEffect(() => { setSelectedSlice(null); setSelectedBarMonth(null); }, [month]);
   useEffect(() => { store.set(KEYS.REMINDER, reminderTime); }, [reminderTime]);
 
-  // Avisa se o aparelho não conseguir salvar e pede armazenamento persistente.
   useEffect(() => {
     storeEvents.onError = () => showToast('Não foi possível salvar neste aparelho. Faça um backup agora.', 'error');
     navigator.storage?.persist?.()?.catch?.(() => {});
     return () => { storeEvents.onError = null; };
   }, []);
 
-  // Recalcula "hoje" quando o app volta ao primeiro plano (ex.: virou o dia).
   const [, setDayTick] = useState(0);
   useEffect(() => {
     const onVisible = () => { if (!document.hidden) setDayTick((n) => n + 1); };
@@ -498,7 +509,6 @@ export default function App() {
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, []);
 
-  // Tecla Esc fecha o modal que estiver aberto.
   useEffect(() => {
     const onKey = (e) => {
       if (e.key !== 'Escape') return;
@@ -521,6 +531,11 @@ export default function App() {
     setAccentKey(next);
     showToast(`Tema ${ACCENT_THEMES[next].label} ativado!`);
   };
+
+  const backupOverdue = useMemo(() => {
+    if (!lastBackupTs) return transactions.length > 4;
+    return (Date.now() - Number(lastBackupTs)) > 7 * 24 * 60 * 60 * 1000;
+  }, [lastBackupTs, transactions.length]);
 
   const getCategoryMeta = (catId) => {
     const found = categories.find((c) => c.id === catId || norm(c.label) === norm(catId));
@@ -576,6 +591,19 @@ export default function App() {
     [categoryGoalTotals]
   );
 
+  const goalAlerts = useMemo(() => {
+    return Object.values(itemGoals)
+      .filter((ig) => ig?.cents > 0)
+      .map((ig) => {
+        const k = itemGoalKey(ig.category, ig.label);
+        const spent = spentByCatItem[k] || 0;
+        const pct = (spent / ig.cents) * 100;
+        return { ...ig, key: k, spent, pct };
+      })
+      .filter((x) => x.pct >= 85)
+      .sort((a, b) => b.pct - a.pct);
+  }, [itemGoals, spentByCatItem]);
+
   const today = todayISO();
   const budget = useMemo(() => {
     const base = totalAllGoals > 0 ? totalAllGoals : summary.receitas;
@@ -587,7 +615,15 @@ export default function App() {
       const spentToday = spent((d) => d === today);
       daily = { allowance, spentToday, daysLeft, pct: allowance > 0 ? (spentToday / allowance) * 100 : spentToday > 0 ? 100 : 0 };
     }
-    return { base, fromGoals: totalAllGoals > 0, remaining: base - summary.despesas, daily };
+    const usedPct = base > 0 ? (summary.despesas / base) * 100 : 0;
+    const status = base <= 0
+      ? 'neutral'
+      : summary.despesas > base
+        ? 'danger'
+        : usedPct >= 85
+          ? 'warning'
+          : 'ok';
+    return { base, fromGoals: totalAllGoals > 0, remaining: base - summary.despesas, usedPct, status, daily };
   }, [totalAllGoals, summary, month, monthTx, today]);
 
   const loggedDays = useMemo(() => new Set([...transactions.map((t) => t.date), ...noSpend]), [transactions, noSpend]);
@@ -693,7 +729,7 @@ export default function App() {
     };
   }, [summary, month, today, donutSegments, topItemsMonth]);
 
-  // Histórico Filtrado
+  // Histórico Filtrado e Agrupado por Data
   const filteredTransactions = useMemo(() => {
     const q = norm(search);
     return monthTx
@@ -702,6 +738,26 @@ export default function App() {
       .filter((t) => !q || norm(t.description).includes(q) || norm(t.category).includes(q))
       .sort((a, b) => b.date.localeCompare(a.date));
   }, [monthTx, filterType, filterCategory, search]);
+
+  const groupedTransactions = useMemo(() => {
+    const groups = [];
+    const map = new Map();
+    for (const t of filteredTransactions) {
+      if (!map.has(t.date)) {
+        const g = { date: t.date, items: [] };
+        map.set(t.date, g);
+        groups.push(g);
+      }
+      map.get(t.date).items.push(t);
+    }
+    return groups;
+  }, [filteredTransactions]);
+
+  const prevMonth = shiftMonth(month, -1);
+  const prevMonthCopyable = useMemo(
+    () => transactions.filter((t) => monthOf(t.date) === prevMonth && !t.groupId),
+    [transactions, prevMonth]
+  );
 
   const suggestedItemsForCategory = useMemo(() => {
     const catMeta = getCategoryMeta(category);
@@ -854,7 +910,7 @@ export default function App() {
 
   const handleDuplicate = (t) => {
     const copy = { ...t, id: generateId(), date: todayISO(), description: baseItemName(t.description) };
-    delete copy.groupId; // a cópia não faz parte do parcelamento original
+    delete copy.groupId;
     setTransactions((prev) => [copy, ...prev]);
     setMonth(monthOf(copy.date));
     showToast(
@@ -864,7 +920,25 @@ export default function App() {
     );
   };
 
-  // Remove lançamentos e oferece "Desfazer" sem perder o que foi lançado depois.
+  const handleCopyPreviousMonth = () => {
+    if (!prevMonthCopyable.length) return;
+    const copies = prevMonthCopyable.map((t) => ({
+      id: generateId(),
+      date: shiftDateMonths(t.date, 1),
+      type: t.type,
+      category: t.category,
+      description: baseItemName(t.description),
+      cents: t.cents,
+    }));
+    const newIds = new Set(copies.map((c) => c.id));
+    setTransactions((prev) => [...copies, ...prev]);
+    showToast(
+      `${copies.length} lançamentos de ${monthLabel(prevMonth)} copiados!`,
+      'success',
+      () => setTransactions((prev) => prev.filter((t) => !newIds.has(t.id)))
+    );
+  };
+
   const removeTransactions = (removed, message) => {
     const ids = new Set(removed.map((t) => t.id));
     setTransactions((prev) => prev.filter((t) => !ids.has(t.id)));
@@ -1017,7 +1091,6 @@ export default function App() {
     const sameType = categories.filter((c) => c.type === cat.type);
     if (sameType.length <= 1) return showToast('Mantenha pelo menos uma categoria.', 'error');
 
-    // Lançamentos da categoria apagada vão para "Outros..." (ou outra do mesmo tipo), sem ficar órfãos.
     const fallback = sameType.find((c) => c.id !== cat.id && /^outr/.test(norm(c.id)))
       || sameType.find((c) => c.id !== cat.id);
     const moved = transactions.filter((t) => t.category === cat.id).length;
@@ -1074,9 +1147,12 @@ export default function App() {
 
   // ----- Exportar Backup Completo (JSON) & Planilha (CSV) -----
   const stampBackup = () => {
-    const now = new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const ts = Date.now();
+    const now = new Date(ts).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
     setLastBackup(now);
+    setLastBackupTs(ts);
     store.set(KEYS.BACKUP, now);
+    store.set(KEYS.BACKUP_TS, ts);
   };
 
   const handleExportFullJSON = async () => {
@@ -1248,7 +1324,6 @@ export default function App() {
   };
 
   const handleConfirmImport = () => {
-    // Guarda tudo o que a importação pode alterar, para o "Desfazer" restaurar por completo.
     const snapshot = { transactions, categories, itemGoals, noSpend };
     const undo = () => {
       setTransactions(snapshot.transactions);
@@ -1342,27 +1417,27 @@ export default function App() {
         </div>
       )}
 
-      {/* Top App Bar (Glassmorphism com contraste corrigido no modo escuro) */}
+      {/* Top App Bar (Título sempre visível sem cortar + Privacidade + Aviso Backup) */}
       <header className="fs-glass-top sticky top-0 z-30">
-        <div className="max-w-3xl mx-auto px-4 pb-3 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2.5 min-w-0">
+        <div className="max-w-3xl mx-auto px-3 sm:px-4 pb-3 flex items-center justify-between gap-1.5">
+          <div className="flex items-center gap-2 min-w-0">
             <div
-              className="w-9 h-9 rounded-xl text-white flex items-center justify-center shrink-0"
+              className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl text-white flex items-center justify-center shrink-0"
               style={{ background: accent.gradient, boxShadow: `0 4px 12px ${accent.shadow}` }}
             >
-              <Wallet className="w-5 h-5" />
+              <Wallet className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-lg font-extrabold fs-text-main tracking-tight leading-none truncate">
+              <h1 className="text-base sm:text-lg font-extrabold fs-text-main tracking-tight leading-none whitespace-nowrap">
                 Finanças
               </h1>
-              <p className="text-[11px] fs-text-muted mt-0.5 truncate">
-                {lastBackup ? `Backup: ${lastBackup}` : 'Controle da Família'}
+              <p className="text-[10px] sm:text-[11px] fs-text-muted mt-0.5 truncate max-w-[115px] sm:max-w-none">
+                {lastBackup ? `Backup: ${lastBackup.replace(/\/\d{4},?/, '')}` : 'Controle da Família'}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
             <input
               ref={fileInputRef}
               type="file"
@@ -1371,27 +1446,41 @@ export default function App() {
               className="hidden"
             />
             <button
+              onClick={() => setHideValues((h) => !h)}
+              aria-label={hideValues ? 'Mostrar valores' : 'Ocultar valores'}
+              title={hideValues ? 'Mostrar valores' : 'Ocultar valores'}
+              className="fs-elevated fs-text-sec p-1.5 sm:p-2 rounded-xl cursor-pointer active:scale-95 transition-transform"
+            >
+              {hideValues ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
+            <button
               onClick={() => fileInputRef.current?.click()}
               title="Importar backup (.json), planilha (.csv) ou extrato (.ofx)"
-              className="fs-elevated fs-text-sec inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-semibold rounded-xl cursor-pointer active:scale-95 transition-transform"
+              className="fs-elevated fs-text-sec inline-flex items-center gap-1.5 p-1.5 sm:px-2.5 sm:py-2 text-xs font-semibold rounded-xl cursor-pointer active:scale-95 transition-transform"
             >
-              <Upload className="w-3.5 h-3.5" />
+              <Upload className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
               <span className="hidden sm:inline">Importar</span>
             </button>
             <button
               onClick={() => setBackupMenuOpen(true)}
-              title="Opções de backup e exportação"
+              title={backupOverdue ? 'Recomendado fazer backup agora' : 'Opções de backup e exportação'}
               style={{ background: accent.gradient, boxShadow: `0 3px 10px ${accent.shadow}` }}
-              className="inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-bold text-white rounded-xl cursor-pointer active:scale-95 transition-transform"
+              className="relative inline-flex items-center gap-1.5 p-1.5 sm:px-2.5 sm:py-2 text-xs font-bold text-white rounded-xl cursor-pointer active:scale-95 transition-transform"
             >
-              <Download className="w-3.5 h-3.5" />
-              <span>Backup</span>
+              <Download className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+              <span className="hidden sm:inline">Backup</span>
+              {backupOverdue && (
+                <span
+                  aria-label="Backup pendente"
+                  className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-400 ring-2 ring-[var(--bg-app)]"
+                />
+              )}
             </button>
             <button
               onClick={() => setReminderModalOpen(true)}
               aria-label="Lembrete diário"
               title="Configurar lembrete diário na agenda"
-              className="fs-elevated fs-text-sec p-2 rounded-xl cursor-pointer active:scale-95 transition-transform"
+              className="fs-elevated fs-text-sec p-1.5 sm:p-2 rounded-xl cursor-pointer active:scale-95 transition-transform"
             >
               <Bell className="w-4 h-4" />
             </button>
@@ -1399,7 +1488,7 @@ export default function App() {
               onClick={cycleAccent}
               aria-label="Trocar cor do tema"
               title={`Cor atual: ${accent.label} (toque para trocar)`}
-              className="fs-elevated p-2 rounded-xl cursor-pointer active:scale-95 transition-transform"
+              className="fs-elevated p-1.5 sm:p-2 rounded-xl cursor-pointer active:scale-95 transition-transform"
               style={{ color: accentText }}
             >
               <Palette className="w-4 h-4" />
@@ -1408,7 +1497,7 @@ export default function App() {
               onClick={() => setDark((d) => !d)}
               aria-label="Alternar claro/escuro"
               title={dark ? 'Mudar para modo claro' : 'Mudar para modo escuro'}
-              className="fs-elevated fs-text-sec p-2 rounded-xl cursor-pointer active:scale-95 transition-transform"
+              className="fs-elevated fs-text-sec p-1.5 sm:p-2 rounded-xl cursor-pointer active:scale-95 transition-transform"
             >
               {dark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
@@ -1448,27 +1537,48 @@ export default function App() {
         {/* ================================================================ */}
         {activeTab === 'inicio' && (
           <div className="space-y-4">
-            {/* Hero Card */}
+            {/* Hero Card com Semáforo de Orçamento */}
             <section
-              className="relative overflow-hidden rounded-3xl text-white p-5"
-              style={{ background: accent.gradient, boxShadow: `0 12px 30px -6px ${accent.shadow}` }}
+              className="relative overflow-hidden rounded-3xl text-white p-5 transition-all duration-300"
+              style={
+                budget.status === 'danger'
+                  ? {
+                      background: 'linear-gradient(135deg, #e11d48 0%, #be123c 100%)',
+                      boxShadow: '0 12px 30px -6px rgba(225, 29, 72, 0.38)',
+                    }
+                  : budget.status === 'warning'
+                    ? {
+                        background: 'linear-gradient(135deg, #d97706 0%, #ea580c 100%)',
+                        boxShadow: '0 12px 30px -6px rgba(217, 119, 6, 0.35)',
+                      }
+                    : {
+                        background: accent.gradient,
+                        boxShadow: `0 12px 30px -6px ${accent.shadow}`,
+                      }
+              }
             >
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-white/80">
-                    {budget.base <= 0
-                      ? 'Orçamento do mês'
-                      : budget.remaining >= 0
-                        ? 'Você ainda pode gastar'
-                        : 'Orçamento estourado em'}
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-white/90 flex items-center gap-1.5">
+                    {budget.status === 'danger' && <AlertCircle className="w-3.5 h-3.5 shrink-0" />}
+                    {budget.status === 'warning' && <AlertTriangle className="w-3.5 h-3.5 shrink-0" />}
+                    <span>
+                      {budget.base <= 0
+                        ? 'Orçamento do mês'
+                        : budget.remaining >= 0
+                          ? budget.status === 'warning'
+                            ? `Atenção: ${Math.round(budget.usedPct)}% usado`
+                            : 'Você ainda pode gastar'
+                          : 'Orçamento estourado em'}
+                    </span>
                   </p>
                   {budget.base > 0 ? (
                     <>
                       <p className="text-3xl sm:text-4xl font-extrabold tracking-tight mt-1">
-                        {formatCurrency(Math.abs(budget.remaining))}
+                        {money(Math.abs(budget.remaining))}
                       </p>
                       <p className="text-xs text-white/85 mt-1">
-                        de {formatCurrency(budget.base)} ({budget.fromGoals ? 'soma das metas' : 'receitas do mês'})
+                        de {money(budget.base)} ({budget.fromGoals ? 'soma das metas' : 'receitas do mês'})
                       </p>
                     </>
                   ) : (
@@ -1488,7 +1598,15 @@ export default function App() {
                 <div className="mt-4 pt-3.5 border-t border-white/20">
                   <div className="flex justify-between text-xs text-white/90 mb-1.5">
                     <span>
-                      Hoje: <strong>{formatCurrency(budget.daily.spentToday)}</strong> / {formatCurrency(budget.daily.allowance)}
+                      {budget.daily.allowance > 0 ? (
+                        <>
+                          Hoje: <strong>{money(budget.daily.spentToday)}</strong> / {money(budget.daily.allowance)}
+                        </>
+                      ) : (
+                        <>
+                          Hoje: <strong>{money(budget.daily.spentToday)}</strong> (limite diário esgotado)
+                        </>
+                      )}
                     </span>
                     <span>{budget.daily.daysLeft}d restantes</span>
                   </div>
@@ -1509,13 +1627,13 @@ export default function App() {
               <div className="fs-card p-3.5 rounded-2xl">
                 <p className="text-[11px] font-semibold fs-text-muted">Acumulado</p>
                 <p className={`text-sm sm:text-base font-extrabold mt-0.5 truncate ${summary.acumulado >= 0 ? 'fs-text-main' : 'text-rose-500'}`}>
-                  {formatCurrency(summary.acumulado)}
+                  {money(summary.acumulado)}
                 </p>
                 <p
                   className="text-[10px] font-bold mt-0.5 truncate"
                   style={{ color: summary.saldoMes >= 0 ? accentText : '#f43f5e' }}
                 >
-                  Mês: {formatCurrency(summary.saldoMes)}
+                  Mês: {money(summary.saldoMes)}
                 </p>
               </div>
               <div className="fs-card p-3.5 rounded-2xl">
@@ -1524,7 +1642,7 @@ export default function App() {
                   <ArrowUpRight className="w-3.5 h-3.5 text-emerald-500" />
                 </div>
                 <p className="text-sm sm:text-base font-extrabold text-emerald-500 mt-0.5 truncate">
-                  {formatCurrency(summary.receitas)}
+                  {money(summary.receitas)}
                 </p>
                 <p className="text-[10px] fs-text-muted mt-0.5">Entradas</p>
               </div>
@@ -1534,13 +1652,41 @@ export default function App() {
                   <ArrowDownRight className="w-3.5 h-3.5 text-rose-500" />
                 </div>
                 <p className="text-sm sm:text-base font-extrabold text-rose-500 mt-0.5 truncate">
-                  {formatCurrency(summary.despesas)}
+                  {money(summary.despesas)}
                 </p>
                 <p className="text-[10px] fs-text-muted mt-0.5">Saídas</p>
               </div>
             </section>
 
-            {/* Faixa discreta de Check-in (só aparece se hoje ainda não foi registrado) */}
+            {/* Alerta rápido de Metas por Item perto ou acima do limite */}
+            {goalAlerts.length > 0 && (
+              <button
+                type="button"
+                onClick={() => { setMetasView('itens'); setActiveTab('metas'); }}
+                style={{
+                  backgroundColor: goalAlerts[0].pct >= 100 ? 'rgba(244, 63, 94, 0.12)' : 'rgba(245, 158, 11, 0.13)',
+                  borderColor: goalAlerts[0].pct >= 100 ? 'rgba(244, 63, 94, 0.35)' : 'rgba(245, 158, 11, 0.35)',
+                }}
+                className="w-full px-4 py-2.5 rounded-2xl border flex items-center justify-between gap-2 text-left cursor-pointer active:scale-[0.99] transition-transform"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <AlertTriangle
+                    className={`w-4 h-4 shrink-0 ${goalAlerts[0].pct >= 100 ? 'text-rose-500' : 'text-amber-500'}`}
+                  />
+                  <p className="text-xs font-bold fs-text-main truncate">
+                    {goalAlerts[0].pct >= 100
+                      ? `${goalAlerts[0].label} estourou a meta (${Math.round(goalAlerts[0].pct)}%)`
+                      : `${goalAlerts[0].label} atingiu ${Math.round(goalAlerts[0].pct)}% da meta`}
+                    {goalAlerts.length > 1 && ` · +${goalAlerts.length - 1}`}
+                  </p>
+                </div>
+                <span className="text-[11px] font-extrabold shrink-0" style={{ color: accentText }}>
+                  Metas →
+                </span>
+              </button>
+            )}
+
+            {/* Faixa discreta de Check-in */}
             {month === monthOf(today) && !loggedDays.has(today) && (
               <div className="fs-card px-4 py-2.5 rounded-2xl flex items-center justify-between gap-2">
                 <span className="text-xs font-semibold fs-text-sec">Nada lançado hoje ainda</span>
@@ -1554,7 +1700,7 @@ export default function App() {
               </div>
             )}
 
-            {/* Histórico Completo */}
+            {/* Histórico Completo Agrupado por Dia */}
             <section className="fs-card rounded-3xl overflow-hidden">
               <div className="p-4 space-y-3" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                 <div className="flex items-center justify-between">
@@ -1624,63 +1770,81 @@ export default function App() {
               </div>
 
               {filteredTransactions.length === 0 ? (
-                <div className="p-10 text-center text-xs fs-text-muted">
-                  Nenhum lançamento encontrado neste mês. Toque no botão <strong>+</strong> abaixo para começar.
+                <div className="p-8 text-center space-y-3">
+                  <p className="text-xs fs-text-muted">
+                    Nenhum lançamento encontrado neste mês. Toque no botão <strong>+</strong> abaixo para começar.
+                  </p>
+                  {monthTx.length === 0 && prevMonthCopyable.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleCopyPreviousMonth}
+                      style={{ backgroundColor: accent.soft, color: accentText }}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-extrabold rounded-xl cursor-pointer active:scale-95 transition-transform"
+                    >
+                      <CalendarPlus className="w-4 h-4" />
+                      Repetir {prevMonthCopyable.length} itens de {monthLabel(prevMonth)}
+                    </button>
+                  )}
                 </div>
               ) : (
-                <div className="fs-divider">
-                  {filteredTransactions.map((item) => {
-                    const meta = getCategoryMeta(item.category);
-                    const Icon = meta.Icon;
-                    const income = item.type === 'receita';
-                    return (
-                      <div key={item.id} className="px-4 py-3.5 flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div
-                            className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0"
-                            style={{ backgroundColor: `${meta.color}20`, color: meta.color }}
-                          >
-                            <Icon className="w-5 h-5" />
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-sm font-bold fs-text-main truncate">{item.description}</p>
-                            <p className="text-[11px] fs-text-muted truncate">
-                              {meta.label} • {formatDateBR(item.date)}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-0.5 shrink-0">
-                          <span className={`text-sm font-extrabold mr-1 ${income ? 'text-emerald-500' : 'text-rose-500'}`}>
-                            {income ? '+' : '-'} {formatCurrency(item.cents)}
-                          </span>
-                          <button
-                            aria-label="Repetir hoje"
-                            title="Repetir lançamento hoje"
-                            onClick={() => handleDuplicate(item)}
-                            className="p-1.5 fs-text-muted hover:text-emerald-500 rounded-lg cursor-pointer"
-                          >
-                            <Copy className="w-4 h-4" />
-                          </button>
-                          <button
-                            aria-label="Editar"
-                            title="Editar"
-                            onClick={() => handleEdit(item)}
-                            className="p-1.5 fs-text-muted hover:text-sky-400 rounded-lg cursor-pointer"
-                          >
-                            <Pencil className="w-4 h-4" />
-                          </button>
-                          <button
-                            aria-label="Excluir"
-                            title="Excluir"
-                            onClick={() => handleDelete(item.id)}
-                            className="p-1.5 fs-text-muted hover:text-rose-500 rounded-lg cursor-pointer"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
+                <div>
+                  {groupedTransactions.map((group) => (
+                    <div key={group.date}>
+                      <div
+                        className="fs-elevated px-4 py-1.5 flex items-center justify-between text-[11px] font-extrabold uppercase tracking-wider fs-text-muted"
+                        style={{ borderBottom: '1px solid var(--border-subtle)', borderTop: '1px solid var(--border-subtle)' }}
+                      >
+                        <span>{groupDateLabel(group.date)}</span>
+                        <span>{group.items.length} {group.items.length === 1 ? 'item' : 'itens'}</span>
                       </div>
-                    );
-                  })}
+                      <div className="fs-divider">
+                        {group.items.map((item) => {
+                          const meta = getCategoryMeta(item.category);
+                          const Icon = meta.Icon;
+                          const income = item.type === 'receita';
+                          return (
+                            <div key={item.id} className="px-4 py-3 flex items-center justify-between gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleEdit(item)}
+                                className="flex items-center gap-3 min-w-0 flex-1 text-left cursor-pointer"
+                              >
+                                <div
+                                  className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0"
+                                  style={{ backgroundColor: `${meta.color}20`, color: meta.color }}
+                                >
+                                  <Icon className="w-5 h-5" />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-sm font-bold fs-text-main truncate">{item.description}</p>
+                                  <p className="text-[11px] fs-text-muted truncate">{meta.label}</p>
+                                </div>
+                              </button>
+
+                              <div className="flex items-center gap-1 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => handleEdit(item)}
+                                  className={`text-sm font-extrabold cursor-pointer ${income ? 'text-emerald-500' : 'text-rose-500'}`}
+                                >
+                                  {income ? '+' : '-'} {money(item.cents)}
+                                </button>
+                                <button
+                                  type="button"
+                                  aria-label="Repetir hoje"
+                                  title="Repetir lançamento hoje"
+                                  onClick={() => handleDuplicate(item)}
+                                  className="p-1.5 fs-text-muted hover:text-emerald-500 rounded-lg cursor-pointer"
+                                >
+                                  <Copy className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </section>
@@ -1705,7 +1869,7 @@ export default function App() {
               <div className="fs-card p-4 rounded-2xl">
                 <p className="text-[11px] font-semibold fs-text-muted">Média diária gasta</p>
                 <p className="text-2xl font-extrabold fs-text-main mt-1">
-                  {formatCurrency(dashInsights.dailyAvg)}
+                  {money(dashInsights.dailyAvg)}
                 </p>
                 <p className="text-[11px] fs-text-muted mt-0.5">por dia neste mês</p>
               </div>
@@ -1715,7 +1879,7 @@ export default function App() {
                   {dashInsights.topCat ? dashInsights.topCat.label : '—'}
                 </p>
                 <p className="text-xs font-bold text-rose-500 mt-0.5">
-                  {dashInsights.topCat ? formatCurrency(dashInsights.topCat.value) : 'R$ 0,00'}
+                  {dashInsights.topCat ? money(dashInsights.topCat.value) : money(0)}
                 </p>
               </div>
               <div className="fs-card p-4 rounded-2xl">
@@ -1724,7 +1888,7 @@ export default function App() {
                   {dashInsights.topItem ? dashInsights.topItem.label : '—'}
                 </p>
                 <p className="text-xs font-bold text-rose-500 mt-0.5">
-                  {dashInsights.topItem ? formatCurrency(dashInsights.topItem.value) : 'R$ 0,00'}
+                  {dashInsights.topItem ? money(dashInsights.topItem.value) : money(0)}
                 </p>
               </div>
             </section>
@@ -1746,8 +1910,8 @@ export default function App() {
                 <div className="fs-elevated flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 rounded-2xl text-xs">
                   <span className="font-bold fs-text-main">{monthLabel(activeBarData.ym)}</span>
                   <div className="flex items-center gap-3">
-                    <span className="text-emerald-500 font-bold">+{formatCurrency(activeBarData.receitas)}</span>
-                    <span className="text-rose-500 font-bold">-{formatCurrency(activeBarData.despesas)}</span>
+                    <span className="text-emerald-500 font-bold">+{money(activeBarData.receitas)}</span>
+                    <span className="text-rose-500 font-bold">-{money(activeBarData.despesas)}</span>
                   </div>
                 </div>
               )}
@@ -1834,7 +1998,7 @@ export default function App() {
                           {selectedDonut ? selectedDonut.label : 'Total gasto'}
                         </span>
                         <span className="text-xs font-extrabold fs-text-main">
-                          {selectedDonut ? formatCompact(selectedDonut.value) : formatCompact(summary.despesas)}
+                          {selectedDonut ? compactMoney(selectedDonut.value) : compactMoney(summary.despesas)}
                         </span>
                       </div>
                     </div>
@@ -1854,7 +2018,7 @@ export default function App() {
                           </span>
                           <span className="shrink-0 ml-2">
                             <strong className="fs-text-main">{item.percentage.toFixed(0)}%</strong>
-                            <span className="fs-text-muted ml-1.5">({formatCurrency(item.value)})</span>
+                            <span className="fs-text-muted ml-1.5">({money(item.value)})</span>
                           </span>
                         </button>
                       ))}
@@ -1872,10 +2036,10 @@ export default function App() {
                           <div key={sub.key} className="fs-elevated flex items-center justify-between text-xs px-3 py-2 rounded-xl">
                             <span className="font-semibold fs-text-main">{sub.label}</span>
                             <span>
-                              <strong className="fs-text-main">{formatCurrency(sub.value)}</strong>
+                              <strong className="fs-text-main">{money(sub.value)}</strong>
                               {sub.goal > 0 && (
                                 <span className={`ml-1.5 font-bold ${sub.value > sub.goal ? 'text-rose-500' : 'text-emerald-500'}`}>
-                                  / {formatCurrency(sub.goal)}
+                                  / {money(sub.goal)}
                                 </span>
                               )}
                             </span>
@@ -1904,7 +2068,7 @@ export default function App() {
                         <span className="font-bold fs-text-main truncate">
                           {idx + 1}. {it.label} <span className="font-normal fs-text-muted">({it.meta.label})</span>
                         </span>
-                        <span className="font-extrabold fs-text-main shrink-0 ml-2">{formatCurrency(it.value)}</span>
+                        <span className="font-extrabold fs-text-main shrink-0 ml-2">{money(it.value)}</span>
                       </div>
                       <div className="fs-elevated h-2 rounded-full overflow-hidden">
                         <div
@@ -1980,7 +2144,7 @@ export default function App() {
                           <div className="min-w-0">
                             <h3 className="text-sm font-extrabold fs-text-main truncate">{cat.label}</h3>
                             <p className="text-[11px] fs-text-muted">
-                              Total somado: <strong style={{ color: accentText }}>{formatCurrency(catSumGoal)}</strong>
+                              Total somado: <strong style={{ color: accentText }}>{money(catSumGoal)}</strong>
                             </p>
                           </div>
                         </div>
@@ -2023,7 +2187,7 @@ export default function App() {
                             const limit = itemGoals[k]?.cents || 0;
                             const spent = spentByCatItem[k] || 0;
                             const pct = limit > 0 ? (spent / limit) * 100 : 0;
-                            const barColor = pct >= 100 ? '#f43f5e' : pct >= 80 ? '#f59e0b' : accent.main;
+                            const barColor = pct >= 100 ? '#f43f5e' : pct >= 85 ? '#f59e0b' : accent.main;
 
                             return (
                               <div key={k} className="py-2.5 first:pt-1 last:pb-0 space-y-1.5">
@@ -2041,7 +2205,7 @@ export default function App() {
                                     <div className="min-w-0">
                                       <p className="text-xs font-bold fs-text-main truncate">{itemLabel}</p>
                                       <p className="text-[11px] fs-text-muted">
-                                        Gasto: <strong className="fs-text-sec">{formatCurrency(spent)}</strong>
+                                        Gasto: <strong className="fs-text-sec">{money(spent)}</strong>
                                       </p>
                                     </div>
                                   </div>
@@ -2085,12 +2249,12 @@ export default function App() {
                   <div>
                     <p className="text-xs font-semibold fs-text-muted">Orçamento Total Planejado</p>
                     <p className="text-2xl font-extrabold mt-0.5" style={{ color: accentText }}>
-                      {formatCurrency(totalAllGoals)}
+                      {money(totalAllGoals)}
                     </p>
                   </div>
                   <div className="text-right">
                     <p className="text-xs font-semibold fs-text-muted">Total Gasto no Mês</p>
-                    <p className="text-lg font-extrabold fs-text-main mt-0.5">{formatCurrency(summary.despesas)}</p>
+                    <p className="text-lg font-extrabold fs-text-main mt-0.5">{money(summary.despesas)}</p>
                   </div>
                 </div>
 
@@ -2100,7 +2264,7 @@ export default function App() {
                   const catGoal = categoryGoalTotals[cat.id] || 0;
                   const catSpent = spentByCat[cat.id] || 0;
                   const pct = catGoal > 0 ? (catSpent / catGoal) * 100 : 0;
-                  const barColor = pct >= 100 ? '#f43f5e' : pct >= 80 ? '#f59e0b' : accent.main;
+                  const barColor = pct >= 100 ? '#f43f5e' : pct >= 85 ? '#f59e0b' : accent.main;
                   const catItemEntries = Object.values(itemGoals).filter((ig) => ig.category === cat.id && ig.cents > 0);
 
                   return (
@@ -2116,8 +2280,8 @@ export default function App() {
                           <div className="min-w-0">
                             <h3 className="text-sm font-extrabold fs-text-main truncate">{cat.label}</h3>
                             <p className="text-xs fs-text-muted">
-                              Gasto: <strong className="fs-text-sec">{formatCurrency(catSpent)}</strong> de{' '}
-                              <strong style={{ color: accentText }}>{formatCurrency(catGoal)}</strong>
+                              Gasto: <strong className="fs-text-sec">{money(catSpent)}</strong> de{' '}
+                              <strong style={{ color: accentText }}>{money(catGoal)}</strong>
                             </p>
                           </div>
                         </div>
@@ -2153,7 +2317,7 @@ export default function App() {
                               <div key={k} className="flex items-center justify-between text-xs fs-text-sec">
                                 <span>• {ig.label}</span>
                                 <span>
-                                  {formatCurrency(subSpent)} / <strong className="fs-text-main">{formatCurrency(ig.cents)}</strong>
+                                  {money(subSpent)} / <strong className="fs-text-main">{money(ig.cents)}</strong>
                                 </span>
                               </div>
                             );
@@ -2552,6 +2716,36 @@ export default function App() {
             >
               {editingId ? 'Salvar alterações' : `Registrar ${type}`}
             </button>
+
+            {editingId && (
+              <div className="grid grid-cols-2 gap-2 pt-0.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const target = transactions.find((t) => t.id === editingId);
+                    setQuickOpen(false);
+                    resetForm();
+                    if (target) handleDuplicate(target);
+                  }}
+                  className="fs-elevated fs-text-sec py-2.5 text-xs font-extrabold rounded-xl inline-flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Copy className="w-3.5 h-3.5" /> Repetir hoje
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const idToDelete = editingId;
+                    setQuickOpen(false);
+                    resetForm();
+                    handleDelete(idToDelete);
+                  }}
+                  style={{ backgroundColor: 'rgba(244, 63, 94, 0.14)' }}
+                  className="py-2.5 text-xs font-extrabold text-rose-500 rounded-xl inline-flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Excluir
+                </button>
+              </div>
+            )}
           </form>
         </div>
       )}

@@ -408,7 +408,6 @@ export default function App() {
   const [monthlyBudgets, setMonthlyBudgets] = useState(() => {
     const saved = store.get(KEYS.MONTHLY_BUDGETS);
     if (saved && typeof saved === 'object' && !Array.isArray(saved)) return saved;
-    // Migração automática do formato antigo global (itemGoals) apenas para o mês atual
     const legacy = store.get(KEYS.ITEM_GOALS, {});
     if (legacy && Object.keys(legacy).length > 0) {
       return { [monthOf(todayISO())]: legacy };
@@ -450,7 +449,7 @@ export default function App() {
   const [quickOpen, setQuickOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [type, setType] = useState('despesa');
-  const [isRefund, setIsRefund] = useState(false); // Estorno/reembolso abate gasto do item
+  const [isRefund, setIsRefund] = useState(false);
   const [category, setCategory] = useState('Higiene');
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
@@ -461,7 +460,7 @@ export default function App() {
   // Modal de Replicar Orçamento para Outros Meses
   const [replicateModalOpen, setReplicateModalOpen] = useState(false);
   const [replicateTargets, setReplicateTargets] = useState([]);
-  const [replicateMode, setReplicateMode] = useState('only_empty'); // 'only_empty' | 'overwrite'
+  const [replicateMode, setReplicateMode] = useState('only_empty');
 
   // Filtros do Histórico
   const [filterType, setFilterType] = useState('todos');
@@ -650,12 +649,10 @@ export default function App() {
   const monthTx = useMemo(() => transactions.filter((t) => monthOf(t.date) === month), [transactions, month]);
 
   const summary = useMemo(() => {
-    // Receitas reais do mês (exclui estornos, pois estorno abate o gasto da categoria/item)
     const receitas = monthTx
       .filter((t) => t.type === 'receita' && !t.isRefund)
       .reduce((a, t) => a + t.cents, 0);
 
-    // Gastos líquidos do mês (despesas menos estornos recebidos no mês)
     const despesas = Math.max(
       0,
       monthTx.reduce((a, t) => {
@@ -677,7 +674,6 @@ export default function App() {
     };
   }, [monthTx, transactions]);
 
-  // Gasto líquido por categoria (despesas da categoria menos estornos daquela categoria)
   const spentByCat = useMemo(
     () => monthTx.reduce((acc, t) => {
       if (t.type === 'despesa') {
@@ -690,7 +686,6 @@ export default function App() {
     [monthTx]
   );
 
-  // Gasto líquido por item (despesas do item menos estornos daquele item)
   const spentByCatItem = useMemo(
     () => monthTx.reduce((acc, t) => {
       const k = itemGoalKey(t.category, baseItemName(t.description));
@@ -719,7 +714,6 @@ export default function App() {
     [categoryGoalTotals]
   );
 
-  // Lastro de Receita Real vs. Orçamento Alocado no Mês
   const allocationStats = useMemo(() => {
     const distributableIncome = Math.max(0, summary.receitas - safetyBufferCents);
     const freeToAllocate = Math.max(0, distributableIncome - totalAllGoals);
@@ -748,7 +742,6 @@ export default function App() {
 
   const today = todayISO();
   const budget = useMemo(() => {
-    // O teto real de gasto nunca excede a receita distribuível do mês (evita gastar o que não ganhou)
     const base = totalAllGoals > 0
       ? Math.min(totalAllGoals, allocationStats.distributableIncome)
       : allocationStats.distributableIncome;
@@ -1540,7 +1533,7 @@ export default function App() {
     }
   };
 
-  // ----- Importar JSON Completo, CSV ou OFX -----
+  // ----- Importar JSON Completo, CSV, OFX ou PDF (Itaú) -----
   const handleFileSelect = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = '';
@@ -1564,7 +1557,7 @@ export default function App() {
     }
   };
 
-  // Extrato em PDF (Itaú): lê o texto, categoriza e evita duplicados
+  // Extrato/Fatura em PDF (Itaú): lê o texto, categoriza e evita duplicados
   const importPDF = async (buf) => {
     showToast('Lendo o PDF...', 'info');
     let rows;
@@ -1572,7 +1565,7 @@ export default function App() {
       rows = parseItauStatement(await readPdfPages(buf));
     } catch (e) {
       return showToast(
-        e?.name === 'PasswordException' ? 'Este PDF tem senha. Gere um extrato sem senha.' : 'Não foi possível ler o PDF (sem internet?).',
+        e?.name === 'PasswordException' ? 'Este PDF tem senha. Gere um extrato sem senha.' : 'Não foi possível ler o PDF (verifique sua internet).',
         'error'
       );
     }
@@ -1587,7 +1580,10 @@ export default function App() {
       count[key] = (count[key] || 0) + 1;
       return {
         id: `pdf-${hashStr(key)}-${count[key]}`,
-        date: r.date, type: r.type, description, cents: r.cents,
+        date: r.date,
+        type: r.type,
+        description,
+        cents: r.cents,
         category: learned.get(`${r.type}|${norm(description)}`) || guessCategoryFromList(`${r.tipo} ${r.desc}`, r.type, categories),
       };
     });
@@ -1609,7 +1605,6 @@ export default function App() {
       return showToast('Arquivo JSON inválido ou incompatível.', 'error');
     }
     const clean = sanitizeBackup(raw, Object.keys(ICONS_MAP));
-    // Preserva a flag isRefund se existir nos lançamentos importados
     const refundIds = new Set(raw.transactions.filter((t) => t?.isRefund).map((t) => t.id));
     const txWithRefund = clean.transactions.map((t) => (refundIds.has(t.id) ? { ...t, isRefund: true } : t));
 
@@ -1848,7 +1843,7 @@ export default function App() {
             <input
               ref={fileInputRef}
               type="file"
-              accept=".json,.csv,.ofx,application/json,text/csv,text/plain,application/x-ofx,*/*"
+              accept=".json,.csv,.ofx,.pdf,application/json,text/csv,text/plain,application/x-ofx,application/pdf,*/*"
               onChange={handleFileSelect}
               className="hidden"
             />
@@ -3764,7 +3759,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Modal: Importar JSON / OFX / CSV */}
+      {/* Modal: Importar JSON / OFX / PDF / CSV */}
       {importOpen && (
         <div className="fixed inset-0 z-50 bg-black/65 backdrop-blur-xs flex items-center justify-center p-4" role="dialog" aria-modal="true">
           <div className="fs-card rounded-3xl max-w-lg w-full p-5 space-y-4 max-h-[85dvh] overflow-y-auto">
@@ -3775,7 +3770,7 @@ export default function App() {
                   : importSource === 'ofx'
                     ? 'Importar extrato OFX'
                     : importSource === 'pdf'
-                      ? 'Importar extrato PDF'
+                      ? 'Importar extrato PDF (Itaú)'
                       : 'Importar planilha CSV'}
               </h3>
               <button onClick={() => setImportOpen(false)} aria-label="Fechar" className="p-1 fs-text-muted cursor-pointer"><X className="w-5 h-5" /></button>

@@ -6,6 +6,7 @@ import {
   pad, norm, itemGoalKey, generateId, parseAmountToCents, shiftDateMonths,
   splitInstallments, csvCell, sanitizeBackup, ensureCategories, baseItemName,
 } from './lib/finance.js';
+import { parseItauStatement, readPdfPages, hashStr } from './lib/itauPdf.js';
 import {
   Wallet, TrendingUp, TrendingDown, Trash2, Download, Upload,
   Filter, PieChart, Utensils, Car, Home, Gamepad2, HeartPulse, GraduationCap,
@@ -1545,7 +1546,11 @@ export default function App() {
     e.target.value = '';
     if (!file) return;
     try {
-      const text = decodeText(await file.arrayBuffer());
+      const buf = await file.arrayBuffer();
+      if (/\.pdf$/i.test(file.name) || new TextDecoder('latin1').decode(buf.slice(0, 5)) === '%PDF-') {
+        return await importPDF(buf);
+      }
+      const text = decodeText(buf);
       const trimmed = text.replace(/^\uFEFF/, '').trim();
       if (/\.json$/i.test(file.name) || trimmed.startsWith('{')) {
         parseJSONBackupText(trimmed);
@@ -1557,6 +1562,43 @@ export default function App() {
     } catch {
       showToast('Não foi possível ler o arquivo selecionado.', 'error');
     }
+  };
+
+  // Extrato em PDF (Itaú): lê o texto, categoriza e evita duplicados
+  const importPDF = async (buf) => {
+    showToast('Lendo o PDF...', 'info');
+    let rows;
+    try {
+      rows = parseItauStatement(await readPdfPages(buf));
+    } catch (e) {
+      return showToast(
+        e?.name === 'PasswordException' ? 'Este PDF tem senha. Gere um extrato sem senha.' : 'Não foi possível ler o PDF (sem internet?).',
+        'error'
+      );
+    }
+    if (!rows.length) return showToast('Não encontrei lançamentos. O PDF pode ser uma imagem ou outro layout.', 'error');
+
+    const learned = new Map();
+    transactions.forEach((t) => learned.set(`${t.type}|${norm(baseItemName(t.description))}`, t.category));
+    const count = {};
+    const items = rows.map((r) => {
+      const description = [r.tipo, r.desc].filter(Boolean).join(' · ') || 'Sem descrição';
+      const key = `${r.date}|${r.type}|${r.cents}|${norm(description)}`;
+      count[key] = (count[key] || 0) + 1;
+      return {
+        id: `pdf-${hashStr(key)}-${count[key]}`,
+        date: r.date, type: r.type, description, cents: r.cents,
+        category: learned.get(`${r.type}|${norm(description)}`) || guessCategoryFromList(`${r.tipo} ${r.desc}`, r.type, categories),
+      };
+    });
+    clearTimeout(toastTimer.current);
+    setToast(null);
+    setImportPreview(items);
+    setImportExtraData(null);
+    setImportErrors([]);
+    setImportMode('merge');
+    setImportSource('pdf');
+    setImportOpen(true);
   };
 
   const parseJSONBackupText = (text) => {
@@ -1820,7 +1862,7 @@ export default function App() {
             </button>
             <button
               onClick={() => fileInputRef.current?.click()}
-              title="Importar ou mesclar arquivo recebido (.json, .csv, .ofx)"
+              title="Importar ou mesclar arquivo recebido (.json, .csv, .ofx, .pdf)"
               className="fs-elevated fs-text-sec inline-flex items-center gap-1.5 p-1.5 sm:px-2.5 sm:py-2 text-xs font-semibold rounded-xl cursor-pointer active:scale-95 transition-transform"
             >
               <Upload className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
@@ -3732,7 +3774,9 @@ export default function App() {
                   ? 'Sincronizar / Restaurar Backup (.json)'
                   : importSource === 'ofx'
                     ? 'Importar extrato OFX'
-                    : 'Importar planilha CSV'}
+                    : importSource === 'pdf'
+                      ? 'Importar extrato PDF'
+                      : 'Importar planilha CSV'}
               </h3>
               <button onClick={() => setImportOpen(false)} aria-label="Fechar" className="p-1 fs-text-muted cursor-pointer"><X className="w-5 h-5" /></button>
             </div>
@@ -3758,7 +3802,7 @@ export default function App() {
               {[
                 ['merge', 'Mesclar (Família)', 'Soma os lançamentos novos aos seus sem duplicar.'],
                 ['replace', 'Substituir tudo', 'Apaga os atuais e restaura exatamente este arquivo.'],
-              ].filter(([m]) => importSource !== 'ofx' || m === 'merge').map(([m, tit, sub]) => {
+              ].filter(([m]) => !['ofx', 'pdf'].includes(importSource) || m === 'merge').map(([m, tit, sub]) => {
                 const active = importMode === m;
                 return (
                   <button
